@@ -48,6 +48,17 @@ A Diagnostic Brief must NOT:
 - Replace `@Orchestrator` routing decisions
 - Contain a full copy-paste phase implementation brief
 
+## Session Mechanics — Supervisor Mode (do not bake into agent definitions)
+
+These rules apply in **supervised mode only** and must NOT be written into `orchestrator.agent.md` or any agent definition — they would conflict with the future autonomous pipeline.
+
+- **Orchestrator handoff buttons (`send: false`)** — clicking a button routes to the named agent **in the same chat session**. Context is preserved. Do NOT tell the user to open a new session for these transitions.
+- **When to start a new session** — only when the user is returning to `@Orchestrator` to begin the *next routing cycle* after a completed stage. A new session keeps Orchestrator's reasoning clean and prevents the previous agent's context from bleeding into routing decisions.
+- **Pattern:**
+  1. `@Orchestrator` routes → user clicks handoff button → `@specialist agent` runs *(same session)*
+  2. Stage completes → user opens **new session** → `@Orchestrator` → "Stage X complete, resume"
+  3. `@Orchestrator` routes again → user clicks handoff button → next agent *(same session)*
+
 ## Summary
 
 All pipeline execution — regardless of how obvious the next step seems — routes through `@Orchestrator` in a new session. Advisory chat advises. Agents execute.
