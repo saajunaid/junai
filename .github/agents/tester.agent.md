@@ -152,6 +152,52 @@ pytest tests/ -m "not slow" -v
 
 ---
 
+## UI & Browser Test Detection (MANDATORY — Tech-Stack Agnostic)
+
+Before writing any tests, **scan what was built** and check for UI/browser signals. This applies regardless of the tech stack — do not assume backend-only because the plan says "API" or "Python".
+
+### Detection Signals — trigger Playwright (or platform equivalent) when ANY of these are present
+
+| Signal | Examples |
+|--------|----------|
+| **Web frontend framework** | React, Vue, Angular, Svelte, Next.js, Nuxt, Remix, SvelteKit, HTMX |
+| **Streamlit browser patterns** | `components.html()`, `st.components.v1.iframe()`, `postMessage`, `iframe` injection |
+| **Served HTML/JS** | Any `index.html`, `.jsx`, `.tsx`, `.vue`, `.svelte` files introduced by the feature |
+| **Real-time/async UI** | WebSocket, SSE, polling — where the UI updates without a full page reload |
+| **Cross-window communication** | `postMessage`, `BroadcastChannel`, iframe bridge patterns |
+| **Browser-rendered forms or flows** | Any UI where a user types, clicks, or navigates in a browser |
+| **Mobile app UI** | React Native, Flutter, Ionic, Capacitor — use platform-appropriate tool (Detox/Appium) |
+
+### Rule
+
+> **If ANY detection signal is present: default to including browser/E2E tests alongside pytest unit tests.**
+> Do NOT rely on pytest-only coverage for a feature that has a browser UI layer — unit tests cannot verify rendering, DOM state, event delivery, or cross-window communication.
+
+### Tool selection
+
+| UI type | Default tool | Skill to load |
+|---------|-------------|---------------|
+| Web (any framework) | Playwright | `.github/skills/testing/playwright/SKILL.md` |
+| Streamlit `components.html()` / iframe | Playwright | `.github/skills/testing/playwright/SKILL.md` |
+| React Native / Ionic | Detox or Appium | Note in coverage report — escalate if tooling not in repo |
+| Flutter | Flutter integration_test | Note in coverage report — escalate if tooling not in repo |
+
+### What to test at the browser layer (minimum)
+
+1. **Rendering** — the UI mounts and key elements are visible
+2. **Interaction** — user actions (click, type, submit) produce correct outcomes
+3. **Data delivery** — context/payload reaches the UI (e.g. postMessage received, SSE event rendered)
+4. **State after async** — UI reflects correct state after API calls, streams, or socket events resolve
+
+### If Playwright/E2E tooling is not installed
+
+Check `requirements.txt` / `pyproject.toml` for `playwright`. If absent:
+1. Note the gap in the coverage report under `uncovered_requirements`
+2. Do NOT skip the tests silently — write them and mark `@pytest.mark.skip(reason="playwright not installed")`
+3. Escalate to `agent-docs/escalations/` with severity `warning` so the gap is visible to code reviewer
+
+---
+
 ## Phase Scope Discipline (MANDATORY)
 
 When working from a phased plan document, your scope is **strictly bounded** by the phase assignment.
