@@ -182,6 +182,31 @@ When context window is limited, read in this order:
 
 ---
 
+### 8. Completion Reporting Protocol (MANDATORY — GAP-001/002/004/008/009/010)
+
+When your review is complete:
+
+1. **Commit** — include `pipeline-state.json`:
+   ```
+   git add agent-docs/reviews/review-<feature>.md .github/pipeline-state.json
+   git commit -m "chore(review): <feature> review complete — <approved|revision-requested>"
+   ```
+
+2. **Update `pipeline-state.json`** — set `review.status: complete`, `review_approved: true|false`, `completed_at: <ISO-date>`, `artefact: <path>`.
+
+3. **Output your completion report, then HARD STOP:**
+   ```
+   **Review complete.**
+   - Verdict: <approved | revision-requested>
+   - Issues: <N blocking, N warnings, N nits>
+   - Commit: `<sha>`
+   - pipeline-state.json: updated
+   ```
+
+4. **HARD STOP** — Do NOT offer to route to implement or any other agent. Do NOT ask if you should continue. The Orchestrator owns all routing decisions.
+
+---
+
 ## Output Contract
 
 | Field | Value |

@@ -232,6 +232,30 @@ When context window is limited, read in this order:
 
 ---
 
+### 8. Completion Reporting Protocol (MANDATORY — GAP-001/002/004/008/009/010)
+
+When your work is complete:
+
+1. **Commit** — include `pipeline-state.json`:
+   ```
+   git add <SQL/query files> .github/pipeline-state.json
+   git commit -m "<exact message specified in the plan>"
+   ```
+
+2. **Update `pipeline-state.json`** — set your stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <paths>`.
+
+3. **Output your completion report, then HARD STOP:**
+   ```
+   **SQL Expert complete.**
+   - Built: <one-line summary>
+   - Commit: `<sha>` — `<message>`
+   - pipeline-state.json: updated
+   ```
+
+4. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions.
+
+---
+
 ## Output Contract
 
 | Field | Value |
