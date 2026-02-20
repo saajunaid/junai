@@ -4,6 +4,15 @@
 
 Structure debugging requests to efficiently identify and resolve issues.
 
+## Pipeline Boundary (when used with JUNO pipeline)
+
+If `.github/pipeline-state.json` exists:
+
+- Produce a **diagnostic brief** and a project-ready troubleshooting prompt.
+- Do not include pipeline-stage transitions, gate instructions, or pipeline-state edits.
+- Do not provide direct handoff routing.
+- End with: "Use `@Orchestrator` to route this troubleshooting brief."
+
 ## Input Required
 
 - Error message or symptom

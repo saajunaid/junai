@@ -84,6 +84,15 @@ Once understanding is clear, present a concise plan:
 
 Wait for the user to confirm the plan, then proceed with implementation.
 
+## Pipeline Boundary (when used with JUNO pipeline)
+
+If `.github/pipeline-state.json` exists, treat this prompt as advisory preparation only:
+
+- Do not provide direct stage-routing handoff prompts.
+- Do not instruct stage transitions or gate changes.
+- Provide a concise understanding summary + optional troubleshooting brief.
+- End with: "Open `@Orchestrator` in a new session to route execution from pipeline state."
+
 ---
 
 ## Why This Matters

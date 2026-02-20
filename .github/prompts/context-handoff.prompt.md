@@ -124,6 +124,15 @@ Current status: {one line summary}
 Next step: {exact next action}
 ```
 
+### Pipeline Boundary (when `pipeline-state.json` exists)
+
+For pipeline-managed work, the continuation prompt must:
+
+- Reference current state from `.github/pipeline-state.json`
+- Avoid direct stage-routing instructions to non-orchestrator agents
+- Avoid explicit gate toggles/state mutation instructions
+- End with: "Open `@Orchestrator` in a new session and resume from pipeline state."
+
 ### Step 5: Git Checkpoint (optional)
 
 If the project uses git, create a checkpoint:
