@@ -207,6 +207,28 @@ When your review is complete:
 
 ---
 
+### 9. Deferred Items Protocol (GAP-016)
+
+Any issues out-of-scope for this review cycle but worth tracking for a future sprint must be emitted in a structured `deferred:` block at the end of your review output. The Orchestrator parses this block to write `pipeline-state.json deferred[]`.
+
+```
+deferred:
+  - id: DEF-001
+    title: <short title>
+    file: <relative file path>
+    detail: <one or two sentences — what to fix and why>
+    severity: security-nit | code-quality | performance | ux
+```
+
+If there are no deferred items, output:
+```
+deferred: []
+```
+
+Do NOT omit this block — the Orchestrator requires it to complete the Pipeline Close Protocol.
+
+---
+
 ## Output Contract
 
 | Field | Value |
