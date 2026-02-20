@@ -277,6 +277,34 @@ When context window is limited, read in this order:
 
 ---
 
+### 8. Completion Reporting Protocol (MANDATORY — GAP-001/002/004/008/009/010)
+
+When your work is complete:
+
+1. **Pre-commit checklist:**
+   - If this is a multi-phase stage: confirm `current_phase == total_phases` before marking the stage `complete` — do NOT mark complete if more phases remain
+
+2. **Commit** — include `pipeline-state.json` in every commit:
+   ```
+   git add <test files> .github/pipeline-state.json
+   git commit -m "<exact message specified in the plan>"
+   ```
+
+3. **Update `pipeline-state.json`** — set your stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <paths>`.
+
+4. **Output your completion report, then HARD STOP:**
+   ```
+   **Tester complete.**
+   - Tests: <N passed, N skipped>
+   - Coverage doc: agent-docs/testing/coverage-<feature>.md
+   - Commit: `<sha>` — `<message>`
+   - pipeline-state.json: updated
+   ```
+
+5. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions.
+
+---
+
 ## Output Contract
 
 | Field | Value |
