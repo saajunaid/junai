@@ -646,3 +646,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `diagrams/<name>.mmd` or `agent-docs/architecture/<name>.mmd` |
+| `required_fields` | N/A (diagram file is the artefact) |
+| `approval_on_completion` | N/A |
+| `next_agent` | `architect` or `plan` (for documentation reference) |
+
+> **Orchestrator note:** Diagram is a support artefact. No approval gate required before routing.

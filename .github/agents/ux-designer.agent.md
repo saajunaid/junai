@@ -234,3 +234,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `agent-docs/ux/ux-<feature>.md` |
+| `required_fields` | `chain_id`, `status`, `approval`, `user_flows`, `pain_points`, `success_criteria` |
+| `approval_on_completion` | `pending` |
+| `next_agent` | `ui-ux-designer` |
+
+> **Orchestrator check:** Verify `approval: approved` in UX research doc before routing to `next_agent`.

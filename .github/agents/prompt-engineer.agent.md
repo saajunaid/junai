@@ -285,3 +285,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `.github/prompts/<name>.prompt.md` |
+| `required_fields` | N/A (prompt file is the artefact) |
+| `approval_on_completion` | N/A |
+| `next_agent` | None — pool resource update |
+
+> **Orchestrator note:** Prompt Engineer produces pool resources, not pipeline artefacts. No routing required.

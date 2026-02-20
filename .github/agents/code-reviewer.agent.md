@@ -179,3 +179,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `agent-docs/reviews/review-<feature>.md` |
+| `required_fields` | `chain_id`, `status`, `approval`, `verdict`, `issues` |
+| `approval_on_completion` | `approved` or `revision-requested` |
+| `next_agent` | `implement` (on `revision-requested`) or `done` (on `approved`) |
+
+> **Orchestrator check:** Route to `implement` if `approval: revision-requested`; mark pipeline stage complete if `approval: approved`.

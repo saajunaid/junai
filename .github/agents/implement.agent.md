@@ -966,4 +966,17 @@ When context window is limited, read in this order:
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
 
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `src/**` (code committed to repo) + optional `agent-docs/<feature>-impl-notes.md` |
+| `required_fields` | `chain_id`, `status`, `approval` (in impl-notes if produced) |
+| `approval_on_completion` | `pending` |
+| `next_agent` | `tester`, `code-reviewer` |
+
+> **Orchestrator check:** Verify `approval: approved` in impl-notes (if produced) before routing to `next_agent`.
+
 ```
