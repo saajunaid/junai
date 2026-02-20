@@ -76,6 +76,17 @@ Instructions are **IDE-agnostic**. Use them in any tool that accepts file-based 
 
 After sync, files live under `instructions/`. All paths are relative, so just place the AI resources folder wherever your IDE expects it (e.g. `.cursor/`, `.github/`).
 
+## Portability & Precedence
+
+When moving AI resources between projects or machines, use this model:
+
+1. **Pool (portable default):** Keep shared behavior in `.github/agents/`, `.github/skills/`, `.github/prompts/`, `.github/instructions/`, `.github/diagrams/`.
+2. **Project overlay (local):** Keep project-specific constraints in each project's `copilot-instructions.md`.
+3. **Sync direction:** Use `juno-push` to publish pool updates from a project to `juno-ai`; use `juno-pull` to bring latest pool into another project.
+4. **Important:** `juno-pull`/`juno-push` do **not** sync project-local files like `copilot-instructions.md` or `.github/pipeline/*` unless your sync script is extended.
+5. **Recommendation:** Put global guardrails (e.g., AdvisoryHub boundaries) in synced `instructions/` and `prompts/`, then mirror minimal project-specific wording in local `copilot-instructions.md`.
+6. **First run on new machine:** clone/open project → load `sync.ps1` → run `juno-pull` → verify expected prompt/instruction files are present.
+
 ## Adding New Instructions
 
 1. Create a new `.instructions.md` file
