@@ -195,10 +195,17 @@ Before writing any tests, **scan what was built** and check for UI/browser signa
 
 ### If Playwright/E2E tooling is not installed
 
-Check `requirements.txt` / `pyproject.toml` for `playwright`. If absent:
-1. Note the gap in the coverage report under `uncovered_requirements`
-2. Do NOT skip the tests silently — write them and mark `@pytest.mark.skip(reason="playwright not installed")`
-3. Escalate to `agent-docs/escalations/` with severity `warning` so the gap is visible to code reviewer
+Do NOT jump straight to `@pytest.mark.skip`. Follow this three-case resolution protocol:
+
+| Situation | Correct action |
+|---|---|
+| In `requirements.txt` / `pyproject.toml` but not installed | `pip install playwright` + `playwright install` — project-declared, safe to install |
+| Found in `.venv` but absent from `requirements.txt` | Use it; add `playwright` to `requirements.txt`; flag undeclared dep in coverage report under `undeclared_dependencies` |
+| Neither installed nor declared | Install it (`pip install playwright` + `playwright install`), add to `requirements.txt`, then write and run the tests |
+
+**Only reach for `@pytest.mark.skip`** if installation fails (e.g. network blocked, permission error). In that case:
+1. Write the tests and mark `@pytest.mark.skip(reason="playwright install failed — <error>")`
+2. Escalate to `agent-docs/escalations/` with severity `warning`
 
 ---
 
