@@ -274,7 +274,7 @@ The canonical schema for `.github/pipeline-state.json`:
     "plan":       { "status": "not_started", "artefact": null, "completed_at": null },
     "implement":  { "status": "not_started", "artefact": null, "completed_at": null, "current_phase": 0, "total_phases": 1, "retry_count": 0, "max_retries": 3 },
     "tester":     { "status": "not_started", "artefact": null, "completed_at": null, "retry_count": 0, "max_retries": 3 },
-    "review":     { "status": "not_started", "artefact": null, "completed_at": null, "retry_count": 0, "max_retries": 3 }
+    "review":     { "status": "not_started", "artefact": null, "completed_at": null }
   },
   "supervision_gates": {
     "intent_approved": false,
