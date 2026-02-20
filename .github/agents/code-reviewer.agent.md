@@ -1,7 +1,7 @@
 ---
 name: Code Reviewer
 description: Perform thorough code reviews focusing on Python, Streamlit, and project-specific standards
-tools: ['codebase', 'search', 'usages', 'problems', 'changes']
+tools: ['codebase', 'editFiles', 'runCommands', 'search', 'usages', 'problems', 'terminalLastCommand', 'testFailure', 'changes']
 model: Claude Sonnet 4.6
 handoffs:
   - label: Fix Issues
