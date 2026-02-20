@@ -22,7 +22,7 @@ handoffs:
     send: false
   - label: Write Tests
     agent: Tester
-    prompt: The pipeline is routing to you. Read pipeline-state.json and the implementation notes first, then write tests for the completed phase. Before writing tests, run the UI & Browser Test Detection check (your ## UI & Browser Test Detection section) — scan the artefacts from all completed phases for browser/UI signals (any frontend framework, iframe, postMessage, served HTML/JS, SSE, WebSocket, mobile UI). If any signal is detected, include Playwright or platform-appropriate E2E tests alongside pytest.
+    prompt: The pipeline is routing to you. Read pipeline-state.json and the implementation notes first. Run your mandatory UI & Browser Test Detection check, then write tests for the completed phase.
     send: false
   - label: Review Code
     agent: Code Reviewer
