@@ -161,13 +161,6 @@ On first invocation:
 - You do NOT make design decisions
 - You are a **router and validator**, not an executor
 
-### 9. Intake from AdvisoryHub Diagnostic Briefs
-If the user provides a "Diagnostic Brief" from AdvisoryHub:
-- Treat it as advisory context only (not as a routing decision)
-- Validate against `pipeline-state.json` and current stage/gate status
-- Route to the correct agent based on pipeline state + defect type
-- Do not skip gates or stage checks because a brief exists
-
 ---
 
 ## Pipeline State Schema
