@@ -166,7 +166,8 @@ Before writing any tests, **scan what was built** and check for UI/browser signa
 | **Real-time/async UI** | WebSocket, SSE, polling — where the UI updates without a full page reload |
 | **Cross-window communication** | `postMessage`, `BroadcastChannel`, iframe bridge patterns |
 | **Browser-rendered forms or flows** | Any UI where a user types, clicks, or navigates in a browser |
-| **Mobile app UI** | React Native, Flutter, Ionic, Capacitor — use platform-appropriate tool (Detox/Appium) |
+| **Mobile app UI (native)** | React Native, Flutter, Ionic, Capacitor — use platform-appropriate tool (Detox/Appium/Flutter integration_test) |
+| **Mobile app UI (web/PWA)** | Responsive web app, PWA, mobile-viewport Streamlit — Playwright covers this via device emulation |
 
 ### Rule
 
@@ -179,8 +180,11 @@ Before writing any tests, **scan what was built** and check for UI/browser signa
 |---------|-------------|---------------|
 | Web (any framework) | Playwright | `.github/skills/testing/playwright/SKILL.md` |
 | Streamlit `components.html()` / iframe | Playwright | `.github/skills/testing/playwright/SKILL.md` |
-| React Native / Ionic | Detox or Appium | Note in coverage report — escalate if tooling not in repo |
-| Flutter | Flutter integration_test | Note in coverage report — escalate if tooling not in repo |
+| Mobile-responsive web / PWA | Playwright with device emulation (`devices['iPhone 14']` etc.) | `.github/skills/testing/playwright/SKILL.md` |
+| React Native / Ionic (native) | Detox or Appium | Note in coverage report — escalate if tooling not in repo |
+| Flutter (native) | Flutter integration_test | Note in coverage report — escalate if tooling not in repo |
+
+> **Playwright vs native tools:** Playwright controls a real browser — it covers any UI that runs in a browser, including mobile-responsive web and PWAs via device emulation. It cannot drive a native mobile app (React Native, Flutter native, Ionic Capacitor). For native apps, use Detox (React Native preferred), Appium (cross-platform), or Flutter integration_test.
 
 ### What to test at the browser layer (minimum)
 
