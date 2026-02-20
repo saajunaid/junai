@@ -1,0 +1,24 @@
+{
+  "_comment": "Copy this file to .github/pipeline-state.json in your project. Do NOT commit to juno-ai — this file is project-specific.",
+  "project": "<project-name>",
+  "feature": "<feature-slug>",
+  "pipeline_version": "1.0",
+  "current_stage": "intent",
+  "stages": {
+    "intent":    { "status": "not_started", "artefact": null, "completed_at": null },
+    "prd":       { "status": "not_started", "artefact": null, "completed_at": null },
+    "architect": { "status": "not_started", "artefact": null, "completed_at": null },
+    "plan":      { "status": "not_started", "artefact": null, "completed_at": null },
+    "implement": { "status": "not_started", "artefact": null, "completed_at": null },
+    "tester":    { "status": "not_started", "artefact": null, "completed_at": null },
+    "review":    { "status": "not_started", "artefact": null, "completed_at": null }
+  },
+  "supervision_gates": {
+    "intent_approved": false,
+    "adr_approved": false,
+    "plan_approved": false,
+    "review_approved": false
+  },
+  "blocked_by": null,
+  "last_updated": null
+}
