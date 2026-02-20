@@ -185,7 +185,11 @@ Initialise `pipeline-state.json` at the correct starting stage and pre-set the a
 When `review_approved: true` and the user confirms the pipeline is closed:
 
 1. Read the reviewer’s output for a `deferred:` block — structured items with `id`, `title`, `file`, `detail`, `severity`
-2. Write each item to `pipeline-state.json` under the top-level `deferred[]` array
+2. **Verify each `file:` path before writing** — read or grep the file to confirm it exists and contains the symbol/pattern described in `detail`. If a path cannot be verified:
+   - Try to locate the correct file (grep for the symbol name)
+   - Record the corrected path, or flag `file: UNVERIFIED — <reason>` if not resolvable
+   - Do NOT silently write an unverified path to `pipeline-state.json`
+3. Write each verified item to `pipeline-state.json` under the top-level `deferred[]` array
 3. Set `current_stage: closed` and `last_updated: <ISO-timestamp>`
 4. Commit:
    ```
