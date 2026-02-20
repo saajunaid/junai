@@ -203,6 +203,60 @@ If the reviewer produced no `deferred:` block, write `"deferred": []` and procee
 
 ---
 
+### 11. Tester Retry Loop (GAP-H2/H3)
+
+After the tester reports its structured `tester_result` block:
+
+**If `tester_result.status: passed`:**
+- Validate coverage artefact, route forward to `@code-reviewer` as normal.
+
+**If `tester_result.status: failed`:**
+1. Read `tester_result.failures[]`
+2. Check `pipeline-state.json` — read `tester.retry_count` (default `0`) and `tester.max_retries` (default `3`)
+3. If `retry_count >= max_retries`:
+   - Set `blocked_by: tester_retry_limit` in `pipeline-state.json`
+   - Commit and report to user:
+     ```
+     Pipeline halted: tester_retry_limit reached (<N> attempts)
+     Failures requiring human review:
+     <list failures>
+     Fix manually or reset retry_count in pipeline-state.json to resume.
+     ```
+   - STOP. Do not route further.
+4. If `retry_count < max_retries`:
+   - Increment `tester.retry_count` in `pipeline-state.json`
+   - Build a targeted fix brief from `failures[]`
+   - Route to the implementing agent for this stage (read from `pipeline-state.json` `_notes` or context)
+   - Handoff prompt: *"The pipeline is routing to you. Tests failed — apply the targeted fixes below, then stop. Do NOT rerun tests yourself."* followed by the `failures[]` list
+   - After implement fixes: re-route back to `@tester` with standard handoff
+
+---
+
+### 12. Hotfix Mini-Pipeline (GAP-H4)
+
+When `pipeline-state.json` contains `"type": "hotfix"` OR the user initiates with a bug/defect scenario:
+
+**Fast-track route:** `debug (optional) → implement → tester → done`
+
+Rules:
+- Skip `intent`, `prd`, `architect`, `plan` stages entirely — auto-approve all gates
+- `tester` scope: targeted rerun of affected tests only (not full suite), unless full regression is explicitly requested
+- Final commit is tagged in `_notes` as `hotfix_N` (increment from last hotfix)
+- No `review` stage by default — skip unless user explicitly requests code review
+- Close the hotfix pipeline after tester passes: update `pipeline-state.json`, report to user
+
+Pipeline state for hotfix:
+```json
+{
+  "type": "hotfix",
+  "target_commit": "<sha of broken commit>",
+  "symptom": "<one-line description>",
+  "stages": ["implement", "tester"]
+}
+```
+
+---
+
 ## Pipeline State Schema
 
 The canonical schema for `.github/pipeline-state.json`:
@@ -218,9 +272,9 @@ The canonical schema for `.github/pipeline-state.json`:
     "prd":        { "status": "not_started", "artefact": null, "completed_at": null },
     "architect":  { "status": "not_started", "artefact": null, "completed_at": null },
     "plan":       { "status": "not_started", "artefact": null, "completed_at": null },
-    "implement":  { "status": "not_started", "artefact": null, "completed_at": null, "current_phase": 0, "total_phases": 1 },
-    "tester":     { "status": "not_started", "artefact": null, "completed_at": null },
-    "review":     { "status": "not_started", "artefact": null, "completed_at": null }
+    "implement":  { "status": "not_started", "artefact": null, "completed_at": null, "current_phase": 0, "total_phases": 1, "retry_count": 0, "max_retries": 3 },
+    "tester":     { "status": "not_started", "artefact": null, "completed_at": null, "retry_count": 0, "max_retries": 3 },
+    "review":     { "status": "not_started", "artefact": null, "completed_at": null, "retry_count": 0, "max_retries": 3 }
   },
   "supervision_gates": {
     "intent_approved": false,
