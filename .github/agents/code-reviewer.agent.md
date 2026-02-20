@@ -220,6 +220,8 @@ deferred:
     severity: security-nit | code-quality | performance | ux
 ```
 
+> **File path rule (MANDATORY):** Before recording `file:`, confirm the path is correct by reading the file or checking the grep result that surfaced the issue. Do NOT infer the file name from the class/function name or module name. A wrong `file:` path will route `@implement` to the wrong file.
+
 If there are no deferred items, output:
 ```
 deferred: []
