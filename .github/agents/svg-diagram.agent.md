@@ -246,3 +246,16 @@ When context window is limited, read in this order:
 | Borders | Gray | #D1D5DB |
 | Background | Light Gray | #F3F4F6 |
 | Arrows | Medium Gray | #9CA3AF |
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `diagrams/<name>.svg` |
+| `required_fields` | N/A (SVG file is the artefact) |
+| `approval_on_completion` | N/A |
+| `next_agent` | None — visual asset only |
+
+> **Orchestrator note:** SVG Diagram produces visual assets. No approval gate or routing required.

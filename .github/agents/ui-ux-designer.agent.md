@@ -536,3 +536,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `agent-docs/ux/design-<feature>.md` |
+| `required_fields` | `chain_id`, `status`, `approval`, `component_specs`, `interaction_flows`, `brand_tokens` |
+| `approval_on_completion` | `pending` |
+| `next_agent` | `frontend-developer` or `streamlit-developer` |
+
+> **Orchestrator check:** Verify `approval: approved` in design spec before routing to `next_agent`.

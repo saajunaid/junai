@@ -187,3 +187,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `agent-docs/reviews/accessibility-<feature>.md` |
+| `required_fields` | `chain_id`, `status`, `approval`, `wcag_level`, `findings`, `remediation_priority` |
+| `approval_on_completion` | `approved` or `revision-requested` |
+| `next_agent` | `implement` or `janitor` (on `revision-requested`) |
+
+> **Orchestrator check:** Route to `implement` or `janitor` if `approval: revision-requested`.

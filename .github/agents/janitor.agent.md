@@ -185,3 +185,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | In-place code patches (no separate artefact required) |
+| `required_fields` | N/A |
+| `approval_on_completion` | N/A |
+| `next_agent` | `code-reviewer` |
+
+> **Orchestrator check:** Route to `code-reviewer` after all targeted patches are applied.

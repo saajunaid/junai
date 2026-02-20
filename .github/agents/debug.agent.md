@@ -299,3 +299,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `agent-docs/debug/debug-<feature>-<date>.md` |
+| `required_fields` | `chain_id`, `status`, `approval`, `root_cause`, `fix_applied`, `verification_steps` |
+| `approval_on_completion` | `pending` |
+| `next_agent` | `implement` (for code fix) or `janitor` (for targeted patch) |
+
+> **Orchestrator check:** Verify `approval: approved` in debug report before routing to `next_agent`.

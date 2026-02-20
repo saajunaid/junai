@@ -162,3 +162,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `agent-docs/pm-update-<date>.md` (status update) |
+| `required_fields` | `chain_id`, `status`, `blocked_by`, `next_actions` |
+| `approval_on_completion` | `pending` |
+| `next_agent` | `plan` (for new feature cycle) or `user` (for decision gate) |
+
+> **Orchestrator check:** PM updates are informational. Route as directed by `next_actions` field.

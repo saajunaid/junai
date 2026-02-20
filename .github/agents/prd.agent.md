@@ -282,3 +282,16 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `agent-docs/prd/<feature-slug>.md` |
+| `required_fields` | `chain_id`, `status`, `approval`, `functional_requirements`, `non_functional_requirements` |
+| `approval_on_completion` | `pending` |
+| `next_agent` | `architect` |
+
+> **Orchestrator check:** Verify `approval: approved` in the artefact YAML header before routing to `next_agent`.

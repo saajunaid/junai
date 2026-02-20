@@ -549,3 +549,16 @@ When context window is limited, read in this order:
 5. **Compliance**: Consider compliance requirements from profile tech stack
 6. **PRD cross-reference audit**: Every architecture doc MUST include FR-to-Architecture mapping and NFR Compliance Matrix with every PRD ID covered
 7. **Section numbering**: Include ToC with §N numbering — downstream Plan/Implement agents depend on stable references
+
+---
+
+## Output Contract
+
+| Field | Value |
+|-------|-------|
+| `artefact_path` | `agent-docs/architecture/<feature-slug>.md` |
+| `required_fields` | `chain_id`, `status`, `approval`, `component_breakdown`, `adr_list`, `nfr_compliance_matrix` |
+| `approval_on_completion` | `pending` |
+| `next_agent` | `plan` |
+
+> **Orchestrator check:** Verify `approval: approved` in architecture doc before routing to `next_agent`.
