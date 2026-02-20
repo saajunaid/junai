@@ -292,14 +292,26 @@ When your work is complete:
 
 3. **Update `pipeline-state.json`** — set your stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <paths>`.
 
-4. **Output your completion report, then HARD STOP:**
+4. **Output your structured result block, then HARD STOP:**
+
+   The result block is machine-readable — the Orchestrator parses `status` to decide whether to route forward or retry.
+
    ```
-   **Tester complete.**
-   - Tests: <N passed, N skipped>
-   - Coverage doc: agent-docs/testing/coverage-<feature>.md
-   - Commit: `<sha>` — `<message>`
-   - pipeline-state.json: updated
+   tester_result:
+     status: passed | failed
+     passed: <N>
+     failed: <N>
+     skipped: <N>
+     failures:
+       - test: <test_function_name>
+         file: <relative path>
+         reason: <one-line failure description>
+   coverage_doc: agent-docs/testing/coverage-<feature>.md
+   commit: <sha> — <message>
+   pipeline_state: updated
    ```
+
+   If all tests pass, `failures` must be an empty list `[]`.
 
 5. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions.
 
@@ -312,6 +324,6 @@ When your work is complete:
 | `artefact_path` | `tests/**` (test files) + `agent-docs/testing/coverage-<feature>.md` |
 | `required_fields` | `chain_id`, `status`, `approval`, `pass_rate`, `uncovered_requirements` |
 | `approval_on_completion` | `pending` |
-| `next_agent` | `code-reviewer` |
+| `next_agent` | `code-reviewer` (on `status: passed`) or back to implementing agent (on `status: failed`) |
 
-> **Orchestrator check:** Verify `approval: approved` in coverage report before routing to `next_agent`.
+> **Orchestrator check:** Read `tester_result.status`. If `passed` — verify `approval: approved` in coverage report then route to `code-reviewer`. If `failed` — trigger retry loop (see Orchestrator `### 11. Tester Retry Loop`).
