@@ -163,6 +163,46 @@ On first invocation:
 
 ---
 
+### 9. Intake Protocol (GAP-012)
+
+When a user initiates a session without an existing pipeline in progress, map the scenario to the correct entry point:
+
+| Scenario | Entry stage | Auto-approved gates |
+|---|---|---|
+| "I have an idea / new feature" | `intent` → `prd` | None — all gates require approval |
+| "I have a PRD, need architecture" | `architect` | `intent_approved: true` |
+| "I have a plan, need implementation" | `implement` | `intent_approved: true`, `adr_approved: true`, `plan_approved: true` |
+| "Bug/hotfix — known root cause" | `implement` (fast-track) | All gates auto-approved; note `type: hotfix` in state |
+| "Bug/hotfix — unknown root cause" | `debug` (fast-track) | All gates auto-approved; note `type: hotfix` in state |
+| "Deferred items from `pipeline-state.json`" | `implement` (fast-track) | All gates auto-approved; load `deferred[]` as scope |
+
+Initialise `pipeline-state.json` at the correct starting stage and pre-set the appropriate auto-approved gates before routing.
+
+---
+
+### 10. Pipeline Close Protocol (GAP-016)
+
+When `review_approved: true` and the user confirms the pipeline is closed:
+
+1. Read the reviewer’s output for a `deferred:` block — structured items with `id`, `title`, `file`, `detail`, `severity`
+2. Write each item to `pipeline-state.json` under the top-level `deferred[]` array
+3. Set `current_stage: closed` and `last_updated: <ISO-timestamp>`
+4. Commit:
+   ```
+   git add .github/pipeline-state.json
+   git commit -m "chore(pipeline): close <feature> — <N> deferrals logged"
+   ```
+5. Report to user:
+   ```
+   Pipeline closed: <feature>
+   Deferred items: <N> logged in pipeline-state.json deferred[]
+   To resume: @Orchestrator “Start deferred items from pipeline-state.json”
+   ```
+
+If the reviewer produced no `deferred:` block, write `"deferred": []` and proceed.
+
+---
+
 ## Pipeline State Schema
 
 The canonical schema for `.github/pipeline-state.json`:
@@ -178,7 +218,7 @@ The canonical schema for `.github/pipeline-state.json`:
     "prd":        { "status": "not_started", "artefact": null, "completed_at": null },
     "architect":  { "status": "not_started", "artefact": null, "completed_at": null },
     "plan":       { "status": "not_started", "artefact": null, "completed_at": null },
-    "implement":  { "status": "not_started", "artefact": null, "completed_at": null },
+    "implement":  { "status": "not_started", "artefact": null, "completed_at": null, "current_phase": 0, "total_phases": 1 },
     "tester":     { "status": "not_started", "artefact": null, "completed_at": null },
     "review":     { "status": "not_started", "artefact": null, "completed_at": null }
   },
@@ -188,6 +228,7 @@ The canonical schema for `.github/pipeline-state.json`:
     "plan_approved": false,
     "review_approved": false
   },
+  "deferred": [],
   "blocked_by": null,
   "last_updated": "<ISO-timestamp>"
 }
@@ -205,7 +246,8 @@ Current stage: <stage> [COMPLETE]
 Artefact validated: <artefact_path> [OK | MISSING | INCOMPLETE]
 Gate check: <gate_name> [PASSED | WAITING]
 
-Next action: Route to @<NextAgent>
+Next action: Route to @<NextAgent> — Phase <N> only
+Scope: HARD STOP after the exit gate. Commit, update pipeline-state.json, output completion report, then stop.
 Reason: <one sentence>
 
 [Auto-proceeding...] | [Waiting for your approval to continue]
