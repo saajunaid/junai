@@ -1,12 +1,12 @@
-# JUNO Sync — bidirectional pool sync
+# JUNO Sync - bidirectional pool sync
 # Dot-sourced by PowerShell profile. Provides juno-pull and juno-push globally.
 #
 # One-time setup (run once per machine):
 #   Add-Content $PROFILE "`n. 'E:\Projects\juno-ai\sync.ps1'"
 #
 # Usage from any project root:
-#   juno-pull          pull latest pool from juno-ai → current project
-#   juno-push          push pool from current project → juno-ai + commit + push
+#   juno-pull          pull latest pool from juno-ai --> current project
+#   juno-push          push pool from current project --> juno-ai + commit + push
 
 $JUNO_POOL = "E:\Projects\juno-ai"
 $JUNO_GITHUB = "$JUNO_POOL\.github"
@@ -24,16 +24,16 @@ function juno-pull {
     }
 
     Write-Host ""
-    Write-Host "  JUNO PULL  juno-ai → $(Split-Path $ProjectRoot -Leaf)" -ForegroundColor Cyan
-    Write-Host "  ─────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  JUNO PULL  juno-ai --> $(Split-Path $ProjectRoot -Leaf)" -ForegroundColor Cyan
+    Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
 
     foreach ($folder in $POOL_FOLDERS) {
         $src = Join-Path $JUNO_GITHUB $folder
         if (Test-Path $src) {
             Copy-Item $src $target -Recurse -Force
-            Write-Host "  ✓  $folder" -ForegroundColor Green
+            Write-Host "  [OK]  $folder" -ForegroundColor Green
         } else {
-            Write-Host "  ⚠  $folder — not found in pool, skipped" -ForegroundColor Yellow
+            Write-Host "  [--]  $folder - not found in pool, skipped" -ForegroundColor Yellow
         }
     }
 
@@ -57,16 +57,16 @@ function juno-push {
     }
 
     Write-Host ""
-    Write-Host "  JUNO PUSH  $(Split-Path $ProjectRoot -Leaf) → juno-ai" -ForegroundColor Magenta
-    Write-Host "  ─────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  JUNO PUSH  $(Split-Path $ProjectRoot -Leaf) --> juno-ai" -ForegroundColor Magenta
+    Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
 
     foreach ($folder in $POOL_FOLDERS) {
         $src = Join-Path $source $folder
         if (Test-Path $src) {
             Copy-Item $src $JUNO_GITHUB -Recurse -Force
-            Write-Host "  ✓  $folder" -ForegroundColor Green
+            Write-Host "  [OK]  $folder" -ForegroundColor Green
         } else {
-            Write-Host "  -  $folder — not in project, skipped" -ForegroundColor DarkGray
+            Write-Host "  [--]  $folder - not in project, skipped" -ForegroundColor DarkGray
         }
     }
 
@@ -85,7 +85,8 @@ function juno-push {
 
     if ([string]::IsNullOrWhiteSpace($Message)) {
         $projectName = Split-Path $ProjectRoot -Leaf
-        $Message = "feat: sync pool from $projectName — $(Get-Date -Format 'yyyy-MM-dd')"
+        $today = Get-Date -Format "yyyy-MM-dd"
+        $Message = "feat: sync pool from $projectName - $today"
     }
 
     git commit -m $Message | Out-Null
