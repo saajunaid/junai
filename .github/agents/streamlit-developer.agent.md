@@ -4,6 +4,10 @@ description: Expert Streamlit developer for building production-ready dashboards
 tools: ['codebase', 'editFiles', 'search', 'usages', 'problems', 'runCommands']
 model: GPT-5.3-Codex
 handoffs:
+  - label: Return to Orchestrator
+    agent: Orchestrator
+    prompt: Stage complete. Read pipeline-state.json, validate completion, and route the next stage.
+    send: false
   - label: Review Code
     agent: Code Reviewer
     prompt: Review the Streamlit code above for quality and project standards.
@@ -287,7 +291,7 @@ When your work is complete:
    - pipeline-state.json: updated
    ```
 
-5. **HARD STOP** — Do NOT offer to proceed to the next phase. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions.
+5. **HARD STOP** — Do NOT offer to proceed to the next phase. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions. Present only the `Return to Orchestrator` handoff button.
 
 ---
 
