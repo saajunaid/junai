@@ -18,7 +18,7 @@ handoffs:
     send: false
   - label: Implement
     agent: Implement
-    prompt: The pipeline is routing to you. Read pipeline-state.json first. If a Plan exists, read it. If this is a hotfix or deferred context (type: hotfix in pipeline-state.json), use the deferred[] items and hotfix brief as your scope — there is no plan to read.
+    prompt: The pipeline is routing to you. Read pipeline-state.json and the approved Plan first, then begin implementation of the current phase.
     send: false
   - label: Write Tests
     agent: Tester
@@ -26,7 +26,7 @@ handoffs:
     send: false
   - label: Review Code
     agent: Code Reviewer
-    prompt: The pipeline is routing to you. Read pipeline-state.json first. If Plan and PRD exist, review the implementation against them. If this is a hotfix context (type: hotfix), review against the deferred item detail and the commits noted in pipeline-state.json _notes — there is no PRD or Plan to reference.
+    prompt: The pipeline is routing to you. Read pipeline-state.json and review the implementation against the Plan and PRD requirements.
     send: false
   - label: Debug
     agent: Debug
@@ -86,7 +86,7 @@ You work in supervised-autonomous mode by default: auto-proceed on routine trans
 ## Core Responsibilities
 
 ### 1. Read Pipeline State First
-**Always** read `.github/pipeline-state.json` before doing anything else. If the file does not exist, initialise it by copying `.github/pipeline-state.template.json` and filling in `project` and `feature`, or ask the user to provide the feature name and starting stage.
+**Always** read `.github/pipeline-state.json` before doing anything else. If the file does not exist, initialise it using the schema in Step 4 of the ADVISORY-HUB-PLAN, or ask the user to provide the feature name and starting stage.
 
 ### 2. Validate Artefact Contracts
 Before routing to the next agent, check the artefact produced by the previous agent:
@@ -98,8 +98,6 @@ If validation fails:
 - Do NOT route forward
 - Set `"blocked_by": "<reason>"` in `pipeline-state.json`
 - Inform the user with the specific validation failure
-
-> **Hotfix exception:** If `pipeline-state.json` has `"type": "hotfix"`, skip YAML artefact header validation for `implement` and `tester` stages — no plan/PRD artefact exists. Instead confirm the relevant commit SHA is present in `pipeline-state.json _notes` before routing forward.
 
 ### 3. Routing Logic
 
