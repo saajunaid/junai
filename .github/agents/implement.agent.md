@@ -50,6 +50,7 @@ You receive work from: **Plan** (implement the plan), **Architect** (build from 
 
 When receiving a handoff:
 1. Read `.github/pipeline-state.json` first. If `_notes.handoff_payload` exists and `target_agent` is `implement`, treat it as the primary scoped brief.
+1a. **Fidelity Check (GAP-I1):** If `_notes.handoff_payload.coverage_requirements[]` is non-empty — list every item, map each to a specific task in your implementation plan, and flag any unmapped item as `COVERAGE_GAP: <item>` in your opening response. Do NOT silently skip uncovered items.
 2. Read the plan file or architecture doc referenced in the conversation (if present)
 3. Check the prompt/step being implemented — follow it exactly
 4. Run `pytest tests/ --tb=short -q` before AND after changes to verify no regressions

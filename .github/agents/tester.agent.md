@@ -28,6 +28,7 @@ You receive work from: **Implement** / **Streamlit Dev** / **Data Engineer** / *
 
 When receiving a handoff:
 1. Read `.github/pipeline-state.json` first. If `_notes.handoff_payload` exists and `target_agent` is `tester`, treat it as the primary scoped brief.
+1a. **Fidelity Check (GAP-I1):** If `_notes.handoff_payload.coverage_requirements[]` is non-empty — list every item, map each to a specific test you will write, and flag any unmapped item as `COVERAGE_GAP: <item>` in your opening response. Do NOT silently skip uncovered items.
 2. Read the implementation context — identify what was created or changed
 3. Check existing tests in `tests/` for patterns and conventions (pytest, AAA pattern)
 4. Run `pytest tests/ --tb=short -q` to establish baseline before adding new tests

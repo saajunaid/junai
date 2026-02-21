@@ -51,6 +51,7 @@ You receive work from: **PRD** (plan from requirements), **Architect** (plan fro
 When receiving a handoff:
 1. If from Debug — check `.github/handoffs/` for amendment briefs first (see Plan Amendment Consumption section below)
 2. If from PRD/Architect — read provided context, then read existing plans in `.github/plans/` for format consistency
+2a. **Fidelity Check (GAP-I1):** If `_notes.handoff_payload.coverage_requirements[]` is non-empty — list every item, map each to a phase/task in the plan you will write, and flag any unmapped item as `COVERAGE_GAP: <item>` in your opening response. Do NOT silently skip uncovered items.
 3. If from Implement — understand what was built vs what was planned, update the plan to reflect reality
 
 ---
