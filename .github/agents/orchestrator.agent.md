@@ -86,7 +86,7 @@ You work in supervised-autonomous mode by default: auto-proceed on routine trans
 ## Core Responsibilities
 
 ### 1. Read Pipeline State First
-**Always** read `.github/pipeline-state.json` before doing anything else. If the file does not exist, initialise it using the schema in Step 4 of the ADVISORY-HUB-PLAN, or ask the user to provide the feature name and starting stage.
+**Always** read `.github/pipeline-state.json` before doing anything else. If the file does not exist, initialise it by copying `.github/pipeline-state.template.json` and filling in `project` and `feature`, or ask the user to provide the feature name and starting stage.
 
 ### 2. Validate Artefact Contracts
 Before routing to the next agent, check the artefact produced by the previous agent:
@@ -98,6 +98,8 @@ If validation fails:
 - Do NOT route forward
 - Set `"blocked_by": "<reason>"` in `pipeline-state.json`
 - Inform the user with the specific validation failure
+
+> **Hotfix exception:** If `pipeline-state.json` has `"type": "hotfix"`, skip YAML artefact header validation for `implement` and `tester` stages — no plan/PRD artefact exists. Instead confirm the relevant commit SHA is present in `pipeline-state.json _notes` before routing forward.
 
 ### 3. Routing Logic
 
