@@ -6,7 +6,7 @@ model: Claude Sonnet 4.6
 handoffs:
   - label: Return to Orchestrator
     agent: Orchestrator
-    prompt: Stage complete. Read pipeline-state.json, parse review_result, and route or close the pipeline.
+    prompt: Stage complete. Read pipeline-state.json and _routing_decision, then route.
     send: false
   - label: Fix Issues
     agent: Implement
@@ -192,6 +192,8 @@ When context window is limited, read in this order:
 
 When your review is complete:
 
+**Auto mode note:** If `pipeline_mode == auto`: call `notify_orchestrator` MCP tool as final step instead of presenting the button.
+
 1. **Commit** — include `pipeline-state.json`:
    ```
    git add agent-docs/reviews/review-<feature>.md .github/pipeline-state.json
@@ -199,6 +201,7 @@ When your review is complete:
    ```
 
 2. **Update `pipeline-state.json`** — set `review.status: complete`, `review_approved: true|false`, `completed_at: <ISO-date>`, `artefact: <path>`.
+   > **Scope restriction (GAP-I2-c):** Only write your own stage’s `status`, `completed_at`, `review_approved`, and `artefact` fields. Never write `current_stage`, `_notes._routing_decision`, or `supervision_gates` — those belong exclusively to Orchestrator and pipeline-runner.
 
 3. **Output your completion report, then HARD STOP:**
    ```

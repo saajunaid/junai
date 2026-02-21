@@ -88,6 +88,16 @@ You work in supervised-autonomous mode by default: auto-proceed on routine trans
 ### 1. Read Pipeline State First
 **Always** read `.github/pipeline-state.json` before doing anything else. If the file does not exist, initialise it by copying `.github/pipeline-state.template.json` and filling in `project` and `feature`, or ask the user to provide the feature name and starting stage.
 
+After loading state, read `_notes._routing_decision` and branch on `pipeline_mode`:
+1. If `_routing_decision.blocked == true`: report `blocked_reason` and STOP.
+2. If `_routing_decision` exists and not blocked:
+   - **Cross-check (GAP-I2-a):** Run `junai pipeline next` in terminal and compare its `next_stage` against `_routing_decision.next_stage`. If they differ, the stored decision is stale — run §9.2 Stage Drift / Re-entry Resync instead of routing from the stale value.
+   - `pipeline_mode: supervised` → present the target handoff button and WAIT for user click.
+   - `pipeline_mode: auto` → invoke the target agent immediately with the routing prompt.
+3. If `_routing_decision` does not exist:
+   - If `current_stage: intent` → fresh intake. Run Intake Protocol (§9).
+   - If `current_stage` is any other stage → possible stage drift or mid-pipeline re-entry. Run Stage Drift / Re-entry Resync (§9.2) **before** any routing.
+
 ### 2. Validate Artefact Contracts
 Before routing to the next agent, check the artefact produced by the previous agent:
 - Does the artefact file exist at the `artefact_path` defined in that agent's `## Output Contract`?
@@ -102,35 +112,54 @@ If validation fails:
 > **Hotfix exception:** If `pipeline-state.json` has `"type": "hotfix"`, skip YAML artefact header validation for `implement` and `tester` stages — no plan/PRD artefact exists. Instead confirm the relevant commit SHA is present in `pipeline-state.json _notes` before routing forward.
 
 ### 3. Routing Logic
+The pipeline-runner owns all transition inference. Do NOT infer the next stage yourself.
 
-Follow this pipeline sequence by default (can be overridden by plan):
+After a stage completes:
+1. In auto mode, the agent calls `notify_orchestrator` (MCP) and the runner writes `_notes._routing_decision`.
+2. In supervised mode, user returns to orchestrator and you compute/read status via runner-backed tooling.
+3. You read `_notes._routing_decision` and execute it:
+  - present handoff button in supervised mode
+  - invoke target agent in auto mode
+
+You still own:
+- Intake classification (§9)
+- `_notes.handoff_payload` construction (`upstream_artefact`, `coverage_requirements[]`)
+- Human-facing summaries and supervision-gate prompts
+
+You do not own:
+- Selecting next stage from static sequence
+- Guard evaluation
+- Gate satisfaction checks
+
+### 3.1 Pipeline Mode
+
+Read `pipeline_mode` from `pipeline-state.json` root (default: `supervised`).
+
+| Mode | Behaviour |
+|------|-----------|
+| `supervised` | Present routing as handoff button with `send: false` and wait for user click. |
+| `auto` | Read `_notes._routing_decision` and invoke the target agent immediately. Stop only when decision is blocked or a gate is unsatisfied. |
+
+The mode is evaluated at every transition and can be changed by user edits to `pipeline-state.json`.
+
+### 3.2 Agent Registry
+
+All stage-to-agent mappings and pipeline transitions are defined in a **single source of truth**:
 
 ```
-intent --> prd --> architect --> plan --> implement --> tester --> code-reviewer --> done
+tools/pipeline-runner/agents.registry.json
 ```
 
-Parallel or branching routes (only when the plan explicitly defines them):
-```
-architect --> security-analyst (parallel)
-implement --> tester + code-reviewer (parallel)
-ux-designer --> ui-ux-designer --> frontend-developer | streamlit-developer
-```
+You do not need to memorise the routing table. When you need to know which agent handles a stage, read that file.
 
-Support agents (not part of main pipeline, invoke on demand):
-- `debug` — when a defect is reported
-- `janitor` — for targeted patches
-- `data-engineer` / `sql-expert` — for data layer work
-- `devops` — for deployment
-- `mentor` — for explanations
-- `mermaid-diagram-specialist` / `svg-diagram` — for visuals
-- `prompt-engineer` — for pool resource updates
-
-**Before routing to `plan`, `implement`, `tester`, or `code-reviewer` (GAP-I1 — fidelity):**
-Write to `_notes.handoff_payload` in `pipeline-state.json`:
-- `upstream_artefact`: path to the artefact produced by the **current** stage (e.g., architecture doc, plan file, implemented code path)
-- `coverage_requirements[]`: every key deliverable / component / requirement extracted from that artefact that the receiving agent must address — do NOT leave empty if the upstream artefact exists
-
-The receiving agent will check every item in `coverage_requirements[]` before starting work and flag any `COVERAGE_GAP` in its opening response.
+**Onboarding a new pipeline-integrated agent (zero Python changes required):**
+1. Add a `stages` entry:
+   ```json
+   "my_stage": { "agent": "My Agent", "agent_file": "agents/my-agent.agent.md" }
+   ```
+2. Add one or more `transitions` entries wiring the stage into the pipeline (copy an existing entry and set the correct `from_stage`, `to_stage`, `event`, `guards`).
+3. Write the `.agent.md` file with §8 Completion Reporting Protocol and HARD STOP.
+4. The pipeline-runner reads the registry at startup — no restart required.
 
 ### 4. Supervision Gates
 **STOP and ask the user** before proceeding at these gates:
@@ -176,16 +205,116 @@ On first invocation:
 
 When a user initiates a session without an existing pipeline in progress, map the scenario to the correct entry point:
 
-| Scenario | Entry stage | Auto-approved gates |
-|---|---|---|
-| "I have an idea / new feature" | `intent` → `prd` | None — all gates require approval |
-| "I have a PRD, need architecture" | `architect` | `intent_approved: true` |
-| "I have a plan, need implementation" | `implement` | `intent_approved: true`, `adr_approved: true`, `plan_approved: true` |
-| "Bug/hotfix — known root cause" | `implement` (fast-track) | All gates auto-approved; note `type: hotfix` in state |
-| "Bug/hotfix — unknown root cause" | `debug` (fast-track) | All gates auto-approved; note `type: hotfix` in state |
-| "Deferred items from `pipeline-state.json`" | `implement` (fast-track) | All gates auto-approved; load `deferred[]` as scope |
+| Scenario | Entry stage | Auto-approved gates | Recommended mode | Rationale |
+|---|---|---|---|---|
+| "I have an idea / new feature" | `intent` → `prd` | None — all gates require approval | supervised | Unknown scope; gates protect against scope drift |
+| "I have a PRD, need architecture" | `architect` | `intent_approved: true` | supervised | Architecture decisions benefit from human review gates |
+| "I have a plan, need implementation" | `implement` | `intent_approved: true`, `adr_approved: true`, `plan_approved: true` | supervised | Multi-phase work; human oversight per phase |
+| "Bug/hotfix — known root cause" | `implement` (fast-track) | All gates auto-approved; note `type: hotfix` in state | either | Safe: scope locked. Auto fine if confident, supervised if uncertain |
+| "Bug/hotfix — unknown root cause" | `debug` (fast-track) | All gates auto-approved; note `type: hotfix` in state | supervised | Debug output may need human interpretation before implement |
+| "Deferred items from `pipeline-state.json`" | `implement` (fast-track) | All gates auto-approved; load `deferred[]` as scope | auto | Scope pre-locked from previous run; low re-entry risk |
+
+**Mode recommendation output (required):**
+After classifying the scenario, output this line before any routing action:
+
+> **Recommended mode: `<supervised|auto>`** — <one-sentence rationale>
+> To switch: say *"Switch pipeline to supervised mode"* or *"Switch pipeline to auto mode"*
+
+Do not change `pipeline_mode` in `pipeline-state.json` yourself. Only the user switches mode via MCP tool or CLI. You recommend; they decide.
 
 Initialise `pipeline-state.json` at the correct starting stage and pre-set the appropriate auto-approved gates before routing.
+
+### 9.1 Multi-Item Intake (GAP-I5)
+
+If the user's message contains **more than one distinct work item**, do NOT start a pipeline immediately.
+
+**Step 1 — Parse and classify every item:**
+
+| Item | Classification | Reason |
+|---|---|---|
+| Bug / defect / broken behaviour | `hotfix` | Time-sensitive; fast-track pipeline |
+| New feature / new capability | `feature` | Full pipeline required |
+| UI fix / visual regression | `hotfix` (if post-close) or `feature` (if new design) | Depends on whether pipeline is open |
+| DB change / schema / new table | `feature` | Design + plan required |
+| Config change / infra tweak | `ad-hoc` | No pipeline — call devops/sql-expert directly |
+| SQL query / data exploration | `ad-hoc` | No pipeline — call sql-expert or data-engineer directly |
+| Refactor / tech debt | `feature` | Needs plan and review |
+
+**Step 2 — Present the decomposed list to the user:**
+
+```
+I found N pipeline items in your request:
+
+1. [hotfix] <item summary> → hotfix pipeline, starts at: implement|debug
+2. [feature] <item summary> → feature pipeline, starts at: intent
+3. [ad-hoc] <item summary> → no pipeline; I will call @<agent> directly
+
+Suggested order: hotfixes first, then features.
+Ad-hoc items I can handle now in parallel if you wish.
+
+Shall I start with item 1?
+```
+
+**Step 3 — Wait for user confirmation before starting ANY pipeline.**
+
+**Step 4 — Run one pipeline at a time.** Do not start item 2 until item 1 reaches `closed`.
+
+**Step 5 — Ad-hoc items:** Handle ad-hoc items without pipeline init. Route directly to the appropriate specialist agent (sql-expert, devops, data-engineer, janitor) for that item only. Do not create or modify `pipeline-state.json` for ad-hoc work.
+
+**What counts as "more than one distinct work item":**
+- Two or more items that would each result in a separate commit
+- Items that touch different codebases, services, or schemas
+- A mix of hotfix + feature + ad-hoc in a single message
+
+**What does NOT need decomposition:**
+- A single hotfix with multiple DEF IDs (same pipeline, list in `_hotfix_brief`)
+- A single feature with multiple phases (same pipeline, tracked in `current_phase`/`total_phases`)
+
+---
+
+### 9.2 Stage Drift / Re-entry Resync (GAP-I6)
+
+**When this applies** — any of the following:
+- User ran one or more agents directly without routing back to Orchestrator between each step
+- `_routing_decision` is `null` or missing but `current_stage` is not `intent`
+- `pipeline-state.json` stage fields show `status: not_started` for stages that appear complete in git history
+- `init --force` was run mid-pipeline (resets `_routing_decision` without clearing actual work)
+
+**Step 1 — Detect drift:**
+- Read `pipeline-state.json`: note `current_stage` and all stage `status` fields
+- Read git log: `git log --oneline -15` — look for commits with pipeline stage patterns (`feat(plan):`, `feat(implement):`, `fix(<scope>):`, `chore(pipeline):`)
+
+**Step 2 — Classify re-entry type:**
+
+| Condition | Type | Action |
+|---|---|---|
+| `_routing_decision: null` + `current_stage: intent` | Fresh intake | Run §9 Intake Protocol |
+| `_routing_decision: null` + `current_stage != intent` | Post-reset re-entry | Drift reconciliation (Step 3) |
+| `_routing_decision` exists + not blocked | Clean re-entry | Read it and branch per §1 normally |
+| State stage X, git shows stages X+N complete | Stage drift | Drift reconciliation (Step 3) |
+
+**Step 3 — Drift reconciliation:**
+
+1. Report discrepancy clearly:
+   ```
+   State file:   current_stage=<stage>, _routing_decision=null
+   Git history:  <SHA> <message>  ← apparent stage completions
+   Actual state: stages [<list>] appear complete based on commits
+   ```
+2. Ask user to confirm: *"Based on git history, it looks like [stages] are done. Should I align the pipeline state and route to [next_stage]?"*
+3. If confirmed: run `pipeline advance --stage <actual_current_stage>` to sync state file
+4. Commit the corrected state:
+   ```
+   git add .github/pipeline-state.json
+   git commit -m "chore(pipeline): resync state — drift detected on re-entry"
+   ```
+5. Proceed with normal routing per §1 and §3
+
+**Step 4 — If git history is insufficient to determine actual state:**
+Ask the user directly: *"What stages have been completed since the last Orchestrator session? I'll align the state before routing."*
+Never guess. Never advance a stage without user confirmation when drift is ambiguous.
+
+**In auto mode:** Repeated re-entry drift is a signal of a session boundary design problem. Surface it as a warning and recommend switching to supervised mode until the pipeline is stable.
 
 ---
 
@@ -193,19 +322,16 @@ Initialise `pipeline-state.json` at the correct starting stage and pre-set the a
 
 When `review_approved: true` and the user confirms the pipeline is closed:
 
-1. Read the reviewer’s output for a `deferred:` block — structured items with `id`, `title`, `file`, `detail`, `severity`
-2. **Verify each `file:` path before writing** — read or grep the file to confirm it exists and contains the symbol/pattern described in `detail`. If a path cannot be verified:
-   - Try to locate the correct file (grep for the symbol name)
-   - Record the corrected path, or flag `file: UNVERIFIED — <reason>` if not resolvable
-   - Do NOT silently write an unverified path to `pipeline-state.json`
-3. Write each verified item to `pipeline-state.json` under the top-level `deferred[]` array
-3. Set `current_stage: closed` and `last_updated: <ISO-timestamp>`
-4. Commit:
+1. Read the reviewer’s output for a `deferred:` block — structured items with `id`, `title`, `file`, `detail`, `severity`.
+2. Call `validate_deferred_paths` MCP tool with those items.
+3. Write validated/corrected items to top-level `deferred[]` in `pipeline-state.json` and explicitly flag any unverified items.
+4. Set `current_stage: closed` and `last_updated: <ISO-timestamp>`.
+5. Commit:
    ```
    git add .github/pipeline-state.json
    git commit -m "chore(pipeline): close <feature> — <N> deferrals logged"
    ```
-5. Report to user:
+6. Report to user:
    ```
    Pipeline closed: <feature>
    Deferred items: <N> logged in pipeline-state.json deferred[]
@@ -218,30 +344,14 @@ If the reviewer produced no `deferred:` block, write `"deferred": []` and procee
 
 ### 11. Tester Retry Loop (GAP-H2/H3)
 
-After the tester reports its structured `tester_result` block:
+The pipeline-runner resolves tester outcomes (pass/fail/retry-budget) and writes `_notes._routing_decision`.
 
-**If `tester_result.status: passed`:**
-- Validate coverage artefact, route forward to `@code-reviewer` as normal.
+On tester completion:
+1. Read `_notes._routing_decision`.
+2. If blocked (retry budget exhausted), report `blocked_reason` and STOP.
+3. If not blocked, execute the routed handoff (supervised button or auto invoke per `pipeline_mode`).
 
-**If `tester_result.status: failed`:**
-1. Read `tester_result.failures[]`
-2. Check `pipeline-state.json` — read `tester.retry_count` (default `0`) and `tester.max_retries` (default `3`)
-3. If `retry_count >= max_retries`:
-   - Set `blocked_by: tester_retry_limit` in `pipeline-state.json`
-   - Commit and report to user:
-     ```
-     Pipeline halted: tester_retry_limit reached (<N> attempts)
-     Failures requiring human review:
-     <list failures>
-     Fix manually or reset retry_count in pipeline-state.json to resume.
-     ```
-   - STOP. Do not route further.
-4. If `retry_count < max_retries`:
-   - Increment `tester.retry_count` in `pipeline-state.json`
-   - Build a targeted fix brief from `failures[]`
-   - Route to the implementing agent for this stage (read from `pipeline-state.json` `_notes` or context)
-   - Handoff prompt: *"The pipeline is routing to you. Tests failed — apply the targeted fixes below, then stop. Do NOT rerun tests yourself."* followed by the `failures[]` list
-   - After implement fixes: re-route back to `@tester` with standard handoff
+Do not infer retry routing manually.
 
 ---
 
@@ -249,13 +359,13 @@ After the tester reports its structured `tester_result` block:
 
 When `pipeline-state.json` contains `"type": "hotfix"` OR the user initiates with a bug/defect scenario:
 
-**Fast-track route:** `debug (optional) → implement → tester → done`
+**Fast-track route:** Determined by pipeline-runner and read from `_notes._routing_decision`.
 
 Rules:
 - Skip `intent`, `prd`, `architect`, `plan` stages entirely — auto-approve all gates
 - `tester` scope: targeted rerun of affected tests only (not full suite), unless full regression is explicitly requested
 - **`@tester` is MANDATORY before close** — do NOT close the pipeline on implement completion alone; the pipeline cannot close without a `tester_result: status: passed` block
-- **Security review rule:** If ANY deferred item has `severity: security-nit`, `security`, or higher — route to `@code-reviewer` after tester passes. Security fixes require review even on a hotfix.
+- **Security review rule:** If deferred security severities require review, runner routes `tester → review`; otherwise `tester → closed`.
 - No `review` stage for `severity: code-quality` or `severity: performance` items — skip unless user explicitly requests it
 - Close the hotfix pipeline only after tester passes (and after review if required)
 
@@ -305,6 +415,39 @@ Pipeline state for hotfix:
   }
 }
 ```
+
+---
+
+### 13. Pipeline Halt & Recovery Protocol (GAP-I4)
+
+When the pipeline-runner returns `blocked: true` or `pipeline-state.json` shows `blocked_by` is set, **STOP all routing** and surface the issue to the user immediately.
+
+**Halt output format (always use this):**
+```
+⛔ Pipeline halted.
+Reason: <blocked_by value from pipeline-state.json>
+Stage: <current_stage>
+Recovery path: see below
+```
+
+**Recovery paths by cause:**
+
+| Cause | What to show user | Recovery action |
+|---|---|---|
+| Missing artefact (guard: `artefact_exists` failed) | "The artefact for stage `<stage>` does not exist at `<path>`." | User fixes the artefact → say *"Artefact is ready, resume pipeline"* → re-run `notify_orchestrator` |
+| Artefact not approved (guard: `artefact_approved` failed) | "The artefact at `<path>` does not have `approval: approved` in its YAML header." | User adds approval header → say *"Artefact approved, resume pipeline"* |
+| Gate unsatisfied | "Gate `<gate_name>` must be satisfied before advancing." | Review the gate content → say *"Approve <gate_name>"* → orchestrator calls `satisfy_gate` MCP tool |
+| Tester retry budget exhausted (T-15) | "Tester has failed `<retry_count>` times (max: `<max_retries>`). Pipeline blocked." | User reviews failures → say *"Route to debug agent"* → orchestrator manually advances to debug stage |
+| Blocking escalation exists | "A blocking escalation exists in `agent-docs/escalations/`. Pipeline cannot advance." | User resolves escalation → updates severity to `resolved` → say *"Escalation resolved, unblock pipeline"* → orchestrator clears `blocked_by` and re-runs runner |
+
+**After user resolves the issue:**
+1. Re-read `pipeline-state.json`
+2. Clear `blocked_by: null`
+3. Re-run `notify_orchestrator` or `pipeline-runner next` to recompute transition
+4. If transition is now valid, proceed with routing (supervised button or auto invoke per `pipeline_mode`)
+5. Commit updated `pipeline-state.json`
+
+**Important:** All resumption must go through `@Orchestrator`. Agents must never self-resume.
 
 ---
 
