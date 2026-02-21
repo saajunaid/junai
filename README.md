@@ -1,4 +1,4 @@
-# JUNO — Junaid's Unified Neural Orchestration
+# JUNAI — Junaid's Unified Neural AI
 
 > A portable AI agent resource pool for VS Code Copilot.  
 > Drop the `.github/` folder into any project. Set a profile. Go.

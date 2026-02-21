@@ -1,20 +1,24 @@
-# JUNO Sync - bidirectional pool sync
-# Dot-sourced by PowerShell profile. Provides juno-pull and juno-push globally.
+# JUNAI Sync - bidirectional pool sync
+# Dot-sourced by PowerShell profile. Provides junai-pull and junai-push globally.
 #
 # One-time setup (run once per machine):
-#   Add-Content $PROFILE "`n. 'E:\Projects\juno-ai\sync.ps1'"
+#   Add-Content $PROFILE "`n. 'E:\Projects\junai\sync.ps1'"
+#
+# If you previously had juno-ai in your profile, update the path:
+#   Old:  . 'E:\Projects\juno-ai\sync.ps1'
+#   New:  . 'E:\Projects\junai\sync.ps1'
 #
 # Usage from any project root:
-#   juno-pull                    pull latest pool from juno-ai --> current project
-#   juno-push                    push pool from current project --> juno-ai + commit + push
-#   juno-export [OutputPath]     export pool to a local folder or zip (no GitHub needed)
-#   juno-import <SourcePath>     import pool from a local folder or zip into current project
+#   junai-pull                    pull latest pool from junai --> current project
+#   junai-push                    push pool from current project --> junai + commit + push
+#   junai-export [OutputPath]     export pool to a local folder or zip (no GitHub needed)
+#   junai-import <SourcePath>     import pool from a local folder or zip into current project
 
-$JUNO_POOL = "E:\Projects\juno-ai"
+$JUNO_POOL = "E:\Projects\junai"
 $JUNO_GITHUB = "$JUNO_POOL\.github"
 $POOL_FOLDERS = @("agents", "skills", "prompts", "instructions", "diagrams")
 
-function juno-pull {
+function junai-pull {
     param([string]$ProjectRoot = (Get-Location).Path)
 
     $target = Join-Path $ProjectRoot ".github"
@@ -26,7 +30,7 @@ function juno-pull {
     }
 
     Write-Host ""
-    Write-Host "  JUNO PULL  juno-ai --> $(Split-Path $ProjectRoot -Leaf)" -ForegroundColor Cyan
+    Write-Host "  JUNAI PULL  junai --> $(Split-Path $ProjectRoot -Leaf)" -ForegroundColor Cyan
     Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
 
     foreach ($folder in $POOL_FOLDERS) {
@@ -44,7 +48,7 @@ function juno-pull {
     Write-Host ""
 }
 
-function juno-push {
+function junai-push {
     param(
         [string]$ProjectRoot = (Get-Location).Path,
         [string]$Message = ""
@@ -59,7 +63,7 @@ function juno-push {
     }
 
     Write-Host ""
-    Write-Host "  JUNO PUSH  $(Split-Path $ProjectRoot -Leaf) --> juno-ai" -ForegroundColor Magenta
+    Write-Host "  JUNAI PUSH  $(Split-Path $ProjectRoot -Leaf) --> junai" -ForegroundColor Magenta
     Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
 
     foreach ($folder in $POOL_FOLDERS) {
@@ -72,13 +76,13 @@ function juno-push {
         }
     }
 
-    # Commit and push juno-ai
+    # Commit and push junai
     Push-Location $JUNO_POOL
 
     $hasChanges = (git status --porcelain) -ne $null
     if (-not $hasChanges) {
         Write-Host ""
-        Write-Host "  No changes detected in juno-ai. Nothing to commit." -ForegroundColor DarkGray
+        Write-Host "  No changes detected in junai. Nothing to commit." -ForegroundColor DarkGray
         Pop-Location
         return
     }
@@ -97,20 +101,20 @@ function juno-push {
     Pop-Location
 
     Write-Host ""
-    Write-Host "  Committed and pushed to juno-ai." -ForegroundColor Magenta
+    Write-Host "  Committed and pushed to junai." -ForegroundColor Magenta
     Write-Host ""
 }
 
-function juno-export {
+function junai-export {
     # Exports the AI resource pool to a self-contained local folder or zip.
     # Use this when the target machine has no GitHub access.
     #
     # Usage:
-    #   juno-export                          # exports to .\juno-ai-pool-export\
-    #   juno-export -OutputPath C:\USB\juno  # exports to specific path
-    #   juno-export -Zip                     # exports to .\juno-ai-pool-export.zip
+    #   junai-export                          # exports to .\junai-pool-export\
+    #   junai-export -OutputPath C:\USB\junai  # exports to specific path
+    #   junai-export -Zip                     # exports to .\junai-pool-export.zip
     param(
-        [string]$OutputPath = (Join-Path (Get-Location).Path "juno-ai-pool-export"),
+        [string]$OutputPath = (Join-Path (Get-Location).Path "junai-pool-export"),
         [switch]$Zip
     )
 
@@ -118,14 +122,11 @@ function juno-export {
     $zipPath = "$OutputPath-$date.zip"
 
     if ($Zip) {
-        $OutputPath = Join-Path ([System.IO.Path]::GetTempPath()) "juno-ai-pool-export-tmp"
-    }
-
-    if (Test-Path $OutputPath) { Remove-Item $OutputPath -Recurse -Force }
+        $OutputPath = Join-Path ([System.IO.Path]::GetTempPath()) "junai-pool-export-tmp"
     New-Item -ItemType Directory -Path $OutputPath | Out-Null
 
     Write-Host ""
-    Write-Host "  JUNO EXPORT  juno-ai --> $OutputPath" -ForegroundColor Cyan
+    Write-Host "  JUNAI EXPORT  junai --> $OutputPath" -ForegroundColor Cyan
     Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
 
     foreach ($folder in $POOL_FOLDERS) {
@@ -153,17 +154,17 @@ function juno-export {
     }
 
     Write-Host "  On the target machine, run:" -ForegroundColor DarkGray
-    Write-Host "    juno-import <path-to-export-folder>   # from any project root" -ForegroundColor DarkGray
+        Write-Host "    junai-import <path-to-export-folder>   # from any project root" -ForegroundColor DarkGray
     Write-Host ""
 }
 
-function juno-import {
+function junai-import {
     # Imports AI resource pool from a local export folder (created by juno-export).
     # Use this on machines with no GitHub access.
     #
     # Usage (run from the target project root):
-    #   juno-import C:\USB\juno-ai-pool-export
-    #   juno-import C:\USB\juno-ai-pool-export-2026-02-20.zip
+    #   junai-import C:\USB\junai-pool-export
+    #   junai-import C:\USB\junai-pool-export-2026-02-20.zip
     param(
         [Parameter(Mandatory)][string]$SourcePath,
         [string]$ProjectRoot = (Get-Location).Path
@@ -180,7 +181,7 @@ function juno-import {
     # Handle zip input
     $tmpExtract = $null
     if ($SourcePath -match '\.zip$') {
-        $tmpExtract = Join-Path ([System.IO.Path]::GetTempPath()) "juno-import-tmp"
+        $tmpExtract = Join-Path ([System.IO.Path]::GetTempPath()) "junai-import-tmp"
         if (Test-Path $tmpExtract) { Remove-Item $tmpExtract -Recurse -Force }
         Expand-Archive -Path $SourcePath -DestinationPath $tmpExtract
         $SourcePath = $tmpExtract
@@ -192,7 +193,7 @@ function juno-import {
     }
 
     Write-Host ""
-    Write-Host "  JUNO IMPORT  $SourcePath --> $(Split-Path $ProjectRoot -Leaf)" -ForegroundColor Cyan
+    Write-Host "  JUNAI IMPORT  $SourcePath --> $(Split-Path $ProjectRoot -Leaf)" -ForegroundColor Cyan
     Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
 
     foreach ($folder in $POOL_FOLDERS) {
