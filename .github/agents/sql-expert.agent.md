@@ -4,6 +4,10 @@ description: Expert in SQL Server database design, queries, stored procedures, a
 tools: ['codebase', 'search', 'editFiles', 'runCommands', 'usages']
 model: Claude Sonnet 4.6
 handoffs:
+  - label: Return to Orchestrator
+    agent: Orchestrator
+    prompt: Stage complete. Read pipeline-state.json, validate completion, and route the next stage.
+    send: false
   - label: Create Data Model
     agent: Data Engineer
     prompt: Create a data pipeline for the schema designed above.
@@ -252,7 +256,7 @@ When your work is complete:
    - pipeline-state.json: updated
    ```
 
-4. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions.
+4. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions. Present only the `Return to Orchestrator` handoff button.
 
 ---
 

@@ -4,6 +4,10 @@ description: Cleans up code, removes dead code, improves organization
 tools: ['codebase', 'editFiles', 'search', 'usages', 'problems']
 model: GPT-5.3-Codex
 handoffs:
+    - label: Return to Orchestrator
+        agent: Orchestrator
+        prompt: Stage complete. Read pipeline-state.json, validate completion, and route the next stage.
+        send: false
   - label: Review Changes
     agent: Code Reviewer
     prompt: Review the cleanup changes above for safety.
@@ -208,7 +212,7 @@ When your work is complete:
    - pipeline-state.json: updated
    ```
 
-4. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions.
+4. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions. Present only the `Return to Orchestrator` handoff button.
 
 ---
 

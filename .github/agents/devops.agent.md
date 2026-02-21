@@ -4,6 +4,10 @@ description: Expert DevOps engineer for CI/CD, containerization, and deployment
 tools: ['codebase', 'search', 'editFiles', 'runCommands', 'fetch']
 model: GPT-5.3-Codex
 handoffs:
+  - label: Return to Orchestrator
+    agent: Orchestrator
+    prompt: Stage complete. Read pipeline-state.json, validate completion, and route the next stage.
+    send: false
   - label: Review Security
     agent: Security Analyst
     prompt: Review the deployment configuration for security vulnerabilities.
@@ -195,7 +199,7 @@ When your work is complete:
    - pipeline-state.json: updated
    ```
 
-5. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions.
+5. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions. Present only the `Return to Orchestrator` handoff button.
 
 ---
 
