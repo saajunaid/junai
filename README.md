@@ -21,16 +21,17 @@
 
 ### 1. Copy the pool into your project
 
-```powershell
-$pool = "E:\Projects\juno-ai\.github"
-$project = "E:\Projects\YourProject\.github"
+Dot-source `sync.ps1` in your PowerShell profile (once):
 
-Copy-Item "$pool\agents"       $project -Recurse -Force
-Copy-Item "$pool\skills"       $project -Recurse -Force
-Copy-Item "$pool\prompts"      $project -Recurse -Force
-Copy-Item "$pool\instructions" $project -Recurse -Force
-Copy-Item "$pool\diagrams"     $project -Recurse -Force
-Copy-Item "$pool\project-config.md" $project -Force
+```powershell
+# In $PROFILE:
+. 'E:\Projects\junai\sync.ps1'
+```
+
+Then run from any project root:
+
+```powershell
+junai-pull          # copies agents, skills, prompts, instructions, diagrams into .github/
 ```
 
 ### 2. Configure your project
@@ -63,31 +64,51 @@ Agents read `project-config.md` for brand/stack config and `copilot-instructions
 
 ## Pipeline Methodology
 
-Load `.github/skills/workflow/agent-orchestration/SKILL.md` to understand the full Advisory Hub pipeline:
+JUNAI uses a **deterministic 9-stage pipeline** with a state machine runner:
 
 ```
-Spec → Triage → ADR → Plan → Implement (×N) → Review → Debug
+intent → prd → architect → plan → implement → tester → review → deploy → closed
 ```
 
-Start a session: use `.github/prompts/advisory-hub.prompt.md`
+Hotfix fast-track: `intent → implement → tester → closed`
+
+### junai CLI (agent-sandbox projects)
+
+```powershell
+junai pipeline status                        # current stage, mode, blocked_by
+junai pipeline next                          # dry-run: what would advance?
+junai pipeline advance --event <stage>_complete
+junai pipeline mode --value supervised|auto  # supervised = gated, auto = autonomous
+junai pipeline gate  --name <gate_name>      # satisfy a supervision gate
+
+junai agent list                             # compliance table for all agents
+junai agent make     --name <xyz> [--role executing|advisory]
+junai agent validate --name <xyz>
+junai agent onboard  --name <xyz> [--yes]
+```
+
+See `.github/pipeline/cheatsheet.md` for the full reference.
+
+For the Advisory Hub flow (non-pipeline projects), load `.github/skills/workflow/agent-orchestration/SKILL.md` and start with `.github/prompts/advisory-hub.prompt.md`.
 
 ---
 
 ## Syncing Updates
 
-When you improve agents/skills in juno-ai, pull updates into an existing project:
+All sync operations are handled by `sync.ps1`. Dot-source it once in your `$PROFILE`:
 
 ```powershell
-# sync-pool.ps1 — run from your project root
-$pool = "E:\Projects\juno-ai\.github"
-$project = ".\.github"
-
-Copy-Item "$pool\agents"       $project -Recurse -Force
-Copy-Item "$pool\skills"       $project -Recurse -Force
-Copy-Item "$pool\prompts"      $project -Recurse -Force
-Copy-Item "$pool\instructions" $project -Recurse -Force
-# project-config.md is intentionally NOT synced
+. 'E:\Projects\junai\sync.ps1'
 ```
+
+| Command | What it does |
+|---|---|
+| `junai-pull` | Pool → project: copies agents, skills, prompts, instructions, diagrams into `.github/` |
+| `junai-push` | Project → pool: commits improvements from a project back into this repo |
+| `junai-export` | Creates a self-contained folder or `.zip` for offline/air-gapped machines |
+| `junai-import` | Restores a pool from an export folder or zip on a machine without GitHub access |
+
+> `project-config.md` and `copilot-instructions.md` are intentionally **never** synced — they are project-specific.
 
 ---
 
