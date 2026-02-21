@@ -6,7 +6,7 @@ model: Claude Sonnet 4.6
 handoffs:
   - label: Return to Orchestrator
     agent: Orchestrator
-    prompt: Stage complete. Read pipeline-state.json, validate completion, and route the next stage.
+    prompt: Stage complete. Read pipeline-state.json and _routing_decision, then route.
     send: false
   - label: Create Data Model
     agent: Data Engineer
@@ -240,6 +240,8 @@ When context window is limited, read in this order:
 
 When your work is complete:
 
+**Auto mode note:** If `pipeline_mode == auto`: call `notify_orchestrator` MCP tool as final step instead of presenting the button.
+
 1. **Commit** — include `pipeline-state.json`:
    ```
    git add <SQL/query files> .github/pipeline-state.json
@@ -248,6 +250,7 @@ When your work is complete:
    > **No plan? (hotfix / deferred context):** Use the commit message from the orchestrator handoff prompt. If none provided, use: `fix(<scope>): <brief description>` or `chore(<scope>): <brief description>`.
 
 2. **Update `pipeline-state.json`** — set your stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <paths>`.
+   > **Scope restriction (GAP-I2-c):** Only write your own stage’s `status`, `completed_at`, and `artefact` fields. Never write `current_stage`, `_notes._routing_decision`, or `supervision_gates` — those belong exclusively to Orchestrator and pipeline-runner.
 
 3. **Output your completion report, then HARD STOP:**
    ```

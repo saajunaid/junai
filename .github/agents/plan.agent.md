@@ -4,9 +4,9 @@ description: Strategic planning assistant - analyzes requirements and creates im
 tools: ['codebase', 'search', 'fetch', 'usages', 'editFiles', 'runCommands', 'problems', 'terminalLastCommand']
 model: Claude Opus 4.6
 handoffs:
-  - label: Start Implementation
-    agent: Implement
-    prompt: Implement the plan outlined above, following the steps and file structure defined.
+  - label: Return to Orchestrator
+    agent: Orchestrator
+    prompt: Stage complete. Read pipeline-state.json and _routing_decision, then route.
     send: false
   - label: Review Architecture
     agent: Architect
@@ -493,6 +493,23 @@ When context window is limited, read in this order:
 4. **Previous agent's artifact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
+
+### 8. Completion Reporting Protocol (MANDATORY)
+When your plan is complete:
+1. Commit with the message from the orchestrator handoff prompt, or fallback: `feat(<feature>): plan — <description>`
+2. Update `.github/pipeline-state.json` — set `plan` stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <path>`
+3. Report completion in this format ONLY:
+
+   **Plan complete.**
+   - What was produced: <one line>
+   - Commit: `<sha>` — `<message>`
+   - Artefact: `<path>`
+   - Pipeline state updated: `current_stage: implement`
+
+4. **HARD STOP.** Do NOT offer to proceed to implementation. Do NOT ask if you should continue.
+   Present only the **Return to Orchestrator** handoff button.
+
+> **Auto mode:** If `pipeline_mode == "auto"` in `pipeline-state.json`, call the `notify_orchestrator` MCP tool as your final step instead of presenting the button.
 
 ---
 

@@ -6,7 +6,7 @@ model: Claude Sonnet 4.6
 handoffs:
   - label: Return to Orchestrator
     agent: Orchestrator
-    prompt: Stage complete. Read pipeline-state.json, parse tester_result, and route the next stage.
+        prompt: Stage complete. Read pipeline-state.json and _routing_decision, then route.
     send: false
   - label: Fix Failing Tests
     agent: Debug
@@ -287,6 +287,8 @@ When context window is limited, read in this order:
 
 When your work is complete:
 
+**Auto mode note:** If `pipeline_mode == auto`: call `notify_orchestrator` MCP tool as final step instead of presenting the button.
+
 1. **Pre-commit checklist:**
    - If this is a multi-phase stage: confirm `current_phase == total_phases` before marking the stage `complete` — do NOT mark complete if more phases remain
 
@@ -298,6 +300,7 @@ When your work is complete:
    > **No plan? (hotfix / deferred context):** Use the commit message from the orchestrator handoff prompt. If none provided, use: `test(<scope>): targeted rerun <DEF-ID(s)> (hotfix_N)`.
 
 3. **Update `pipeline-state.json`** — set your stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <paths>`.
+   > **Scope restriction (GAP-I2-c):** Only write your own stage’s `status`, `completed_at`, and `artefact` fields. Never write `current_stage`, `_notes._routing_decision`, or `supervision_gates` — those belong exclusively to Orchestrator and pipeline-runner.
 
 4. **Output your structured result block, then HARD STOP:**
 
