@@ -125,6 +125,13 @@ Support agents (not part of main pipeline, invoke on demand):
 - `mermaid-diagram-specialist` / `svg-diagram` — for visuals
 - `prompt-engineer` — for pool resource updates
 
+**Before routing to `plan`, `implement`, `tester`, or `code-reviewer` (GAP-I1 — fidelity):**
+Write to `_notes.handoff_payload` in `pipeline-state.json`:
+- `upstream_artefact`: path to the artefact produced by the **current** stage (e.g., architecture doc, plan file, implemented code path)
+- `coverage_requirements[]`: every key deliverable / component / requirement extracted from that artefact that the receiving agent must address — do NOT leave empty if the upstream artefact exists
+
+The receiving agent will check every item in `coverage_requirements[]` before starting work and flag any `COVERAGE_GAP` in its opening response.
+
 ### 4. Supervision Gates
 **STOP and ask the user** before proceeding at these gates:
 

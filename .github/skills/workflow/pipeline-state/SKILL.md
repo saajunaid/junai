@@ -150,6 +150,34 @@ If any file contains severity: "blocking" → surface to user, do NOT proceed
 }
 ```
 
+### Write handoff payload before routing (GAP-H6 + GAP-I1)
+
+Before routing to `plan`, `implement`, `tester`, or `code-reviewer`, the Orchestrator writes to `_notes.handoff_payload`:
+
+```json
+{
+  "_notes": {
+    "handoff_payload": {
+      "target_agent": "<implement|tester|code-reviewer|plan>",
+      "scope": "<one-line description of what the agent must do>",
+      "summary": "<brief context from upstream stage>",
+      "required_tests": ["<test 1>", "<test 2>"],
+      "exit_criteria": "<what done looks like>",
+      "upstream_artefact": "<path to artefact produced by the current/previous stage>",
+      "coverage_requirements": [
+        "<component or requirement the receiving agent MUST cover>",
+        "<e.g.: component: Search API integration>",
+        "<e.g.: NFR: WCAG 2.1 AA compliance>"
+      ]
+    }
+  }
+}
+```
+
+> **`coverage_requirements[]` rule (GAP-I1):** Must be non-empty whenever an upstream artefact exists (architecture doc → plan, plan → implement, implement → tester, etc.). The receiving agent maps every item to its output and flags `COVERAGE_GAP: <item>` for any item not covered before starting work.
+>
+> **`pipeline_mode` field:** Set `"pipeline_mode": "supervised"` (default) or `"auto"` in the root of `pipeline-state.json`. Orchestrator §1 reads this to determine whether to HARD STOP after presenting the handoff button (`supervised`) or call `notify_orchestrator()` MCP tool and continue (`auto`). Always default to `supervised` on new pipelines — `auto` is an explicit opt-in.
+
 ---
 
 ## Initialisation

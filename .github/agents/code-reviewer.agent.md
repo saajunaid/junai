@@ -38,6 +38,7 @@ You receive work from: **Implement** / **Streamlit Dev** / **Frontend Dev** (rev
 
 When receiving a handoff:
 1. Read `.github/pipeline-state.json` first. If `_notes.handoff_payload` exists and `target_agent` is `code-reviewer`, treat it as the primary scoped brief.
+1a. **Fidelity Check (GAP-I1):** If `_notes.handoff_payload.coverage_requirements[]` is non-empty — list every item, confirm coverage in the code under review, and flag any uncovered item as `COVERAGE_GAP: <item>` in your opening response. Do NOT silently skip uncovered items.
 2. Read `.github/instructions/code-review.instructions.md` for the review checklist
 3. Focus on the severity hierarchy: Security → Correctness → Performance → Maintainability → Style
 4. Use handoff buttons to route fixes — "Fix Issues" → Implement, "Clean Up Code" → Janitor
