@@ -289,6 +289,7 @@ When your work is complete:
    git add <test files> .github/pipeline-state.json
    git commit -m "<exact message specified in the plan>"
    ```
+   > **No plan? (hotfix / deferred context):** Use the commit message from the orchestrator handoff prompt. If none provided, use: `test(<scope>): targeted rerun <DEF-ID(s)> (hotfix_N)`.
 
 3. **Update `pipeline-state.json`** — set your stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <paths>`.
 
@@ -321,7 +322,7 @@ When your work is complete:
 
 | Field | Value |
 |-------|-------|
-| `artefact_path` | `tests/**` (test files) + `agent-docs/testing/coverage-<feature>.md` |
+| `artefact_path` | `tests/**` (test files) + `agent-docs/testing/coverage-<feature>.md` (optional in hotfix targeted rerun — update existing doc if present, do not create new) |
 | `required_fields` | `chain_id`, `status`, `approval`, `pass_rate`, `uncovered_requirements` |
 | `approval_on_completion` | `pending` |
 | `next_agent` | `code-reviewer` (on `status: passed`) or back to implementing agent (on `status: failed`) |
