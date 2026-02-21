@@ -245,9 +245,21 @@ When `pipeline-state.json` contains `"type": "hotfix"` OR the user initiates wit
 Rules:
 - Skip `intent`, `prd`, `architect`, `plan` stages entirely — auto-approve all gates
 - `tester` scope: targeted rerun of affected tests only (not full suite), unless full regression is explicitly requested
-- Final commit is tagged in `_notes` as `hotfix_N` (increment from last hotfix)
-- No `review` stage by default — skip unless user explicitly requests code review
-- Close the hotfix pipeline after tester passes: update `pipeline-state.json`, report to user
+- **`@tester` is MANDATORY before close** — do NOT close the pipeline on implement completion alone; the pipeline cannot close without a `tester_result: status: passed` block
+- **Security review rule:** If ANY deferred item has `severity: security-nit`, `security`, or higher — route to `@code-reviewer` after tester passes. Security fixes require review even on a hotfix.
+- No `review` stage for `severity: code-quality` or `severity: performance` items — skip unless user explicitly requests it
+- Close the hotfix pipeline only after tester passes (and after review if required)
+
+**Handoff prompt to `@implement` (REQUIRED format):**  
+Include the following in every hotfix implement handoff so the agent is not blocked on a missing plan commit message:
+```
+You are applying a targeted hotfix. Apply the fixes listed below, then:
+  git add <changed files> .github/pipeline-state.json
+  git commit -m "fix(<scope>): <DEF-ID(s)> <one-line description> (hotfix_N)"
+Hard stop after commit. Do NOT run tests. Do NOT proceed further.
+Fixes:
+  <list of deferred items with file + detail>
+```
 
 Pipeline state for hotfix:
 ```json
