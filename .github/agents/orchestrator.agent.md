@@ -18,15 +18,15 @@ handoffs:
     send: false
   - label: Implement
     agent: Implement
-    prompt: The pipeline is routing to you. Read pipeline-state.json and the approved Plan first, then begin implementation of the current phase.
+    prompt: The pipeline is routing to you. Read pipeline-state.json first — hotfix: read _notes._hotfix_brief for full scope. If a Plan exists, read it. Then begin implementation of the current phase.
     send: false
   - label: Write Tests
     agent: Tester
-    prompt: The pipeline is routing to you. Read pipeline-state.json and the implementation notes first. Run your mandatory UI & Browser Test Detection check, then write tests for the completed phase.
+    prompt: The pipeline is routing to you. Read pipeline-state.json first — hotfix: read _notes._hotfix_brief for scope. Run your mandatory UI & Browser Test Detection check, then write tests for the phase.
     send: false
   - label: Review Code
     agent: Code Reviewer
-    prompt: The pipeline is routing to you. Read pipeline-state.json and review the implementation against the Plan and PRD requirements.
+    prompt: The pipeline is routing to you. Read pipeline-state.json first — hotfix: read _notes._hotfix_brief for scope. Otherwise review against Plan and PRD requirements.
     send: false
   - label: Debug
     agent: Debug
@@ -268,6 +268,32 @@ Pipeline state for hotfix:
   "target_commit": "<sha of broken commit>",
   "symptom": "<one-line description>",
   "stages": ["implement", "tester"]
+}
+```
+
+**Before each handoff in a hotfix pipeline, write `_notes._hotfix_brief` to `pipeline-state.json` and commit it.** Button prompts are capped at ≤200 chars — the receiving agent reads the full brief from `pipeline-state.json`. Use this structure:
+
+```json
+"_hotfix_brief": {
+  "hotfix_id": "hotfix_N",
+  "def_ids": ["DEF-001", "DEF-002"],
+  "implement": {
+    "changes": [
+      { "def_id": "DEF-001", "file": "src/path/to/file.py", "detail": "what to change" }
+    ],
+    "commit_message": "fix(<scope>): DEF-001 <desc> (hotfix_N)"
+  },
+  "tester": {
+    "existing_tests": ["tests/test_file.py"],
+    "new_tests_required": [
+      { "file": "tests/test_file.py", "test": "def test_...(self):", "rationale": "covers gap X" }
+    ],
+    "exit_criteria": "all existing + N new tests pass, zero regressions"
+  },
+  "reviewer": {
+    "commits": ["<impl_sha>", "<tester_sha>"],
+    "focus": ["security: <what to check>"]
+  }
 }
 ```
 
