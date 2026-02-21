@@ -123,6 +123,7 @@ function junai-export {
 
     if ($Zip) {
         $OutputPath = Join-Path ([System.IO.Path]::GetTempPath()) "junai-pool-export-tmp"
+    }
     New-Item -ItemType Directory -Path $OutputPath | Out-Null
 
     Write-Host ""
