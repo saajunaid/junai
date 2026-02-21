@@ -226,7 +226,6 @@ When your work is complete:
    git add <deliverable files> .github/pipeline-state.json
    git commit -m "<exact message specified in the plan>"
    ```
-   > **No plan? (hotfix / deferred context):** Use the commit message from the orchestrator handoff prompt. If none provided, use: `fix(<scope>): <brief description>` or `chore(<scope>): <brief description>`.
 
 3. **Update `pipeline-state.json`** — set your stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <paths>`.
 
