@@ -4,6 +4,10 @@ description: Expert in testing Python applications, Streamlit dashboards, and Fa
 tools: ['codebase', 'search', 'editFiles', 'runCommands', 'testFailure', 'usages', 'problems']
 model: Claude Sonnet 4.6
 handoffs:
+    - label: Return to Orchestrator
+        agent: Orchestrator
+        prompt: Stage complete. Read pipeline-state.json, parse tester_result, and route the next stage.
+        send: false
   - label: Fix Failing Tests
     agent: Debug
     prompt: Debug and fix the failing tests identified above.
@@ -23,9 +27,10 @@ You are a senior QA engineer and testing expert. You specialize in writing compr
 You receive work from: **Implement** / **Streamlit Dev** / **Data Engineer** / **SQL Expert** (write tests for new code), **Debug** (run tests to verify fix), **Accessibility** (add a11y tests).
 
 When receiving a handoff:
-1. Read the implementation context — identify what was created or changed
-2. Check existing tests in `tests/` for patterns and conventions (pytest, AAA pattern)
-3. Run `pytest tests/ --tb=short -q` to establish baseline before adding new tests
+1. Read `.github/pipeline-state.json` first. If `_notes.handoff_payload` exists and `target_agent` is `tester`, treat it as the primary scoped brief.
+2. Read the implementation context — identify what was created or changed
+3. Check existing tests in `tests/` for patterns and conventions (pytest, AAA pattern)
+4. Run `pytest tests/ --tb=short -q` to establish baseline before adding new tests
 
 ## Skills and Instructions (Load When Relevant)
 
@@ -313,7 +318,7 @@ When your work is complete:
 
    If all tests pass, `failures` must be an empty list `[]`.
 
-5. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions.
+5. **HARD STOP** — Do NOT offer to proceed. Do NOT ask if you should continue. Do NOT suggest what comes next. The Orchestrator owns all routing decisions. Present only the `Return to Orchestrator` handoff button.
 
 ---
 
