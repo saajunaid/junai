@@ -75,7 +75,7 @@ No PowerShell, no cloning required.
 3. Open your project in VS Code
 4. Open Command Palette (`Ctrl+Shift+P`) → **junai: Initialize Agent Pipeline**
 
-The extension copies 23 agents, 203 skills, 30 prompts, 23 instructions, diagrams, and tools into `.github/` and scaffolds `pipeline-state.json` with mode `supervised`. It also writes `.vscode/mcp.json` automatically (see §21).
+The extension copies 23 agents, 203 skills, 30 prompts, 23 instructions, and tools into `.github/` and scaffolds `pipeline-state.json` with mode `supervised`. It also writes `.vscode/mcp.json` automatically (see §21).
 
 > **Requires:** `uv` on PATH for the MCP server transport written by the extension to work. If you prefer the local venv path instead, edit `.vscode/mcp.json` after init (see §21).
 
@@ -100,7 +100,7 @@ Then from any project root:
 junai-pull
 ```
 
-This copies `.github/` (agents, skills, prompts, instructions, diagrams, tools) from the junai repo into your workspace. To update the pool later: `junai-pull` again.
+This copies `.github/` (agents, skills, prompts, instructions, tools, agent-docs, plans, handoffs) from the junai repo into your workspace. To update the pool later: `junai-pull` again.
 
 ### Path C — junai-export / junai-import (air-gapped)
 
@@ -526,7 +526,7 @@ The extension is the zero-friction install path. No PowerShell, no cloning.
 - Or: `code --install-extension junai-labs.junai`
 - Marketplace: https://marketplace.visualstudio.com/items?itemName=junai-labs.junai
 
-**Extension ID:** `junai-labs.junai` · **Source:** https://github.com/saajunaid/junai-vscode
+**Extension ID:** `junai-labs.junai` · **Source:** https://github.com/saajunaid/junai-vscode · **Requires:** VS Code 1.101+
 
 **Commands:**
 
@@ -597,3 +597,4 @@ The local venv path always runs your workspace pool version. The `uvx` path runs
 ### Automatic setup via extension
 
 The VS Code extension (§20) writes the `junai` (uvx) entry automatically on init. If a `junai` key already exists, it is left untouched.
+The extension also registers `junai-mcp` as an MCP server definition provider, so it appears in the **MCP SERVERS** section of the VS Code Extensions panel (requires VS Code 1.101+).
