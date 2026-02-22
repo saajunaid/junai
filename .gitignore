@@ -15,3 +15,12 @@ __pycache__/
 # Temp
 *.tmp
 *.log
+
+# Python packaging
+dist/
+build/
+src/*.egg-info/
+
+# MCP publisher
+mcp-publisher.exe
+.mcpregistry_*
