@@ -533,8 +533,10 @@ The extension is the zero-friction install path. No PowerShell, no cloning.
 | Command | What it does |
 |---|---|
 | `junai: Initialize Agent Pipeline` | Deploy pool into `.github/`, scaffold `pipeline-state.json`, write `.vscode/mcp.json` |
+| `junai: Update Agent Pool` | Refresh all agent/skill/prompt/instruction files from the latest extension version — preserves your `pipeline-state.json` and `project-config.md` |
 | `junai: Show Pipeline Status` | Output panel: mode, version, init date |
 | `junai: Set Pipeline Mode` | Quick-pick: supervised / assisted / autopilot |
+| `junai: Remove from this project` | Delete the pool and MCP config from this project (your code is unaffected) |
 
 **When to use extension vs `junai-pull`:**
 
@@ -543,6 +545,7 @@ The extension is the zero-friction install path. No PowerShell, no cloning.
 | New developer, first time | Extension — no PowerShell required |
 | Already have junai cloned | `junai-pull` — pool stays in sync with upstream |
 | Air-gapped machine | `junai-export` + `junai-import` |
+| Update to latest agents/skills | `junai: Update Agent Pool` — keeps your pipeline state intact |
 
 The extension does **not** create the Python venv. After init, still run the venv setup from §4.
 
