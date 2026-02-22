@@ -1,7 +1,157 @@
-# JUNAI — Junaid's Unified Neural AI
+# junai — Deterministic Agent Pipeline for VS Code Copilot
 
-> A portable AI agent resource pool for VS Code Copilot.  
-> Drop the `.github/` folder into any project. Set a profile. Go.
+> 23 specialised AI agents. A 9-stage deterministic pipeline. No hallucinated routing.  
+> Drop into any project. Run everything from the chat window.
+
+---
+
+## What It Is
+
+junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
+
+- **23 specialised agents** — Architect, Implement, Tester, Code Reviewer, Debug, Security Analyst, and more
+- **A deterministic pipeline** — a Python state machine owns all routing logic; the LLM cannot hallucinate the wrong next step
+- **Supervised and auto modes** — you control whether agents wait for your gate approval or run autonomously
+- **70+ reusable skills, 30 prompts, 23 instruction files** — loaded dynamically by agents as needed
+- **Chat-first UX** — init, reset, mode switch, gate approval all from the Copilot chat window
+
+---
+
+## Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| VS Code | Any recent version |
+| GitHub Copilot | Agent mode must be enabled in Copilot Chat settings |
+| Python 3.11+ | Must be on PATH |
+| Git | For pipeline commits |
+| PowerShell 5.1+ | Windows built-in; required for `sync.ps1` |
+
+---
+
+## Setup — Path A: New Project (Fastest)
+
+1. Click **"Use this template"** → **"Create a new repository"** on this page
+2. Clone your new repo, open it in VS Code
+3. One-time venv setup (30 seconds):
+   ```powershell
+   python -m venv .venv
+   .venv\Scripts\pip install -r tools/mcp-server/requirements.txt -r tools/pipeline-runner/requirements.txt
+   ```
+4. Reload VS Code — the 7 junai MCP tools appear in the Copilot Chat tools icon (⚙)
+5. Edit `.github/project-config.md` — set your project name and stack
+6. Create `.github/copilot-instructions.md` — add your architecture overview, DB names, key file paths
+7. Open Copilot Chat, type `@Orchestrator` and describe what you want to build
+
+---
+
+## Setup — Path B: Existing Project
+
+1. Clone junai anywhere on your machine:
+   ```powershell
+   git clone https://github.com/saajunaid/junai
+   ```
+2. Add to your PowerShell `$PROFILE` (once per machine):
+   ```powershell
+   . 'C:\Path\To\junai\sync.ps1'
+   ```
+3. From your existing project root:
+   ```powershell
+   junai-pull
+   ```
+   Deploys `.github/` (agents, skills, prompts, instructions, diagrams) and `tools/` (pipeline runner + MCP server) into your project.
+4. Create venv (same as Path A step 3), reload VS Code
+5. Configure `project-config.md` and `copilot-instructions.md`, then open Copilot Chat
+
+---
+
+## Your First Pipeline — Chat Commands
+
+No terminal needed after setup. Everything runs from Copilot Chat:
+
+| Say this | What happens |
+|---|---|
+| *"Start a new pipeline for feature: dark mode"* | `pipeline_init` creates state, Orchestrator classifies and routes |
+| *"Switch to auto mode"* | Agents hand off without waiting for your click |
+| *"Approve plan_approved"* | Satisfies a gate — gates are never bypassed in any mode |
+| *"What stage are we at?"* | Returns current stage, mode, blocked_by |
+| *"Reset pipeline for next feature: X"* | Wipes state and starts fresh |
+
+### Pipeline stages
+
+```
+intent → prd → architect → plan → implement → tester → review → closed
+```
+
+Hotfix fast-track: `intent → implement → tester → closed`
+
+---
+
+## Supervised vs Auto Mode
+
+- **Supervised (default):** Orchestrator presents a handoff button after each stage. You click to proceed. Gates require explicit approval.
+- **Auto:** Orchestrator invokes the next agent immediately after completion. Gates still require your approval — they cannot be bypassed.
+
+Switch at any time: *"Switch to auto mode"* or *"Switch to supervised mode"* in chat.
+
+---
+
+## Agents at a Glance
+
+| Layer | Agents |
+|---|---|
+| Deep Reasoning | Architect, Plan, Debug, Security Analyst |
+| Structured Thinking | PRD, Code Reviewer, Data Engineer, Tester, SQL Expert, UI/UX Designer, UX Designer, Prompt Engineer, Accessibility, Mentor |
+| Execution | Implement, Streamlit Developer, Frontend Developer, DevOps, Janitor |
+| Specialist | Mermaid Diagram, SVG Diagram, Project Manager |
+
+---
+
+## MCP Tools (7 total)
+
+Available via natural language in Copilot Chat — or directly in the tools panel:
+
+| Tool | Purpose |
+|---|---|
+| `pipeline_init` | Start a new pipeline (confirm=true required) |
+| `pipeline_reset` | Reset for next feature (confirm=true required) |
+| `set_pipeline_mode` | Switch supervised ↔ auto |
+| `satisfy_gate` | Approve a supervision gate |
+| `get_pipeline_status` | Current stage, mode, blocked_by, next transition |
+| `notify_orchestrator` | Record stage completion + compute next transition |
+| `validate_deferred_paths` | Verify deferred item file paths before pipeline close |
+
+---
+
+## Keeping Your Pool Updated
+
+```powershell
+junai-pull               # pull latest agents/skills/prompts → your project
+junai-push               # push improvements from your project → junai pool
+junai-export             # bundle to folder or .zip (offline/air-gapped)
+junai-import <path>      # restore from export bundle
+```
+
+> `project-config.md`, `copilot-instructions.md`, `pipeline-state.json`, and `agent-docs/` are **never synced** — project-specific.
+
+---
+
+## Pipeline CLI (terminal / scripting)
+
+```powershell
+python tools/pipeline-runner/pipeline_runner.py status
+python tools/pipeline-runner/pipeline_runner.py init --project <name> --feature <slug> --type feature|hotfix --force
+python tools/pipeline-runner/pipeline_runner.py mode --value supervised|auto
+python tools/pipeline-runner/pipeline_runner.py gate --name <gate_name>
+python tools/pipeline-runner/pipeline_runner.py next
+python tools/pipeline-runner/pipeline_runner.py transitions
+```
+
+See `.github/pipeline/cheatsheet.md` for the full reference.
+
+---
+
+*Built by Junaid — because AI agents that hallucinate their own routing were getting old.*
 
 ---
 
