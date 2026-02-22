@@ -27,7 +27,7 @@ import pytest
 # File fixture
 # ---------------------------------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 ORCHESTRATOR_PATH = REPO_ROOT / ".github" / "agents" / "orchestrator.agent.md"
 
 

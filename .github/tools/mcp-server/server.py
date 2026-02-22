@@ -11,7 +11,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_PIPELINE_STATE = WORKSPACE_ROOT / ".github" / "pipeline-state.json"
 PIPELINE_STATE_PATH = Path(
     os.getenv("PIPELINE_STATE_PATH", str(DEFAULT_PIPELINE_STATE))

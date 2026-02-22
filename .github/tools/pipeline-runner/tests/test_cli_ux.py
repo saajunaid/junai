@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-RUNNER_PATH = REPO_ROOT / "tools" / "pipeline-runner" / "pipeline_runner.py"
-REGISTRY_PATH = REPO_ROOT / "tools" / "pipeline-runner" / "agents.registry.json"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+RUNNER_PATH = REPO_ROOT / ".github" / "tools" / "pipeline-runner" / "pipeline_runner.py"
+REGISTRY_PATH = REPO_ROOT / ".github" / "tools" / "pipeline-runner" / "agents.registry.json"
 TEMPLATE_PATH = REPO_ROOT / ".github" / "pipeline-state.template.json"
 
 

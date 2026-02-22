@@ -43,9 +43,9 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
 3. One-time venv setup (30 seconds — we timed it):
    ```powershell
    python -m venv .venv
-   .venv\Scripts\pip install -r tools/mcp-server/requirements.txt -r tools/pipeline-runner/requirements.txt
+   .venv\Scripts\pip install -r .github/tools/mcp-server/requirements.txt -r .github/tools/pipeline-runner/requirements.txt
    ```
-4. Reload VS Code — the 7 junai MCP tools appear in the Copilot Chat tools icon (⚙)
+4. Reload VS Code — the 8 junai MCP tools appear in the Copilot Chat tools icon (⚙)
 5. Edit `.github/project-config.md` — set your project name and stack
 6. Create `.github/copilot-instructions.md` — add your architecture overview, DB names, key file paths
 7. Open Copilot Chat → **select Orchestrator from the agent dropdown** → describe what you want to build
@@ -68,7 +68,7 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
    ```powershell
    junai-pull
    ```
-   Deploys `.github/` (agents, skills, prompts, instructions, diagrams) and `tools/` (pipeline runner + MCP server) into your project.
+   Deploys `.github/` (agents, skills, prompts, instructions, diagrams, **tools**) into your project.
 4. Create venv (same as Path A step 3), reload VS Code
 5. Configure `project-config.md` and `copilot-instructions.md`, then open Copilot Chat → **select Orchestrator from the agent dropdown**
 
@@ -157,12 +157,12 @@ junai-import <path>      # restore from export bundle
 ## Pipeline CLI (terminal / scripting)
 
 ```powershell
-python tools/pipeline-runner/pipeline_runner.py status
-python tools/pipeline-runner/pipeline_runner.py init --project <name> --feature <slug> --type feature|hotfix --force
-python tools/pipeline-runner/pipeline_runner.py mode --value supervised|assisted|autopilot
-python tools/pipeline-runner/pipeline_runner.py gate --name <gate_name>
-python tools/pipeline-runner/pipeline_runner.py next
-python tools/pipeline-runner/pipeline_runner.py transitions
+python .github/tools/pipeline-runner/pipeline_runner.py status
+python .github/tools/pipeline-runner/pipeline_runner.py init --project <name> --feature <slug> --type feature|hotfix --force
+python .github/tools/pipeline-runner/pipeline_runner.py mode --value supervised|assisted|autopilot
+python .github/tools/pipeline-runner/pipeline_runner.py gate --name <gate_name>
+python .github/tools/pipeline-runner/pipeline_runner.py next
+python .github/tools/pipeline-runner/pipeline_runner.py transitions
 ```
 
 See `.github/pipeline/cheatsheet.md` for the full reference.
@@ -261,10 +261,10 @@ If you find it useful, give it a star. If you find a bug, open an issue. If you 
 ├── prompts/         30 prompt templates (advisory-hub, plan, code-review, etc.)
 ├── instructions/    23 instruction files (python, fastapi, streamlit, security, etc.)
 ├── diagrams/        Agent workflow reference cards and design docs
+├── tools/
+│   ├── mcp-server/      8 MCP tools (pipeline_init, pipeline_reset, status, etc.)
+│   └── pipeline-runner/ Python state machine — the deterministic routing engine
 └── project-config.md  ← The only file you edit per project
-tools/
-├── mcp-server/      7 MCP tools (pipeline_init, pipeline_reset, status, etc.)
-└── pipeline-runner/ Python state machine — the deterministic routing engine
 ```
 
 ---
