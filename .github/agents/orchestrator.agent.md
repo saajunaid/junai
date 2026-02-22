@@ -98,6 +98,23 @@ After loading state, read `_notes._routing_decision` and branch on `pipeline_mod
    - If `current_stage: intent` → fresh intake. Run Intake Protocol (§9).
    - If `current_stage` is any other stage → possible stage drift or mid-pipeline re-entry. Run Stage Drift / Re-entry Resync (§9.2) **before** any routing.
 
+#### Pipeline Status Banner (required — bottom of every response)
+
+Every response you produce — routing decisions, gate approvals, status checks, error surfaces, everything — must end with this banner as the very last line:
+
+```
+---
+📍 **Pipeline:** <project> / <feature> | **Stage:** <current_stage> | **Mode:** <pipeline_mode> | **Blocked:** <blocked_by value, or —>
+```
+
+Read values from `pipeline-state.json`. If state cannot be read, output:
+```
+---
+📍 **Pipeline:** — | **Stage:** — | **Mode:** — | **Blocked:** state unreadable
+```
+
+This banner is informational only. It is not a gate, does not affect routing, and does not require user action.
+
 ### 2. Validate Artefact Contracts
 Before routing to the next agent, check the artefact produced by the previous agent:
 - Does the artefact file exist at the `artefact_path` defined in that agent's `## Output Contract`?
@@ -223,6 +240,27 @@ After classifying the scenario, output this line before any routing action:
 Do not change `pipeline_mode` in `pipeline-state.json` yourself. Only the user switches mode via MCP tool or CLI. You recommend; they decide.
 
 Initialise `pipeline-state.json` at the correct starting stage and pre-set the appropriate auto-approved gates before routing.
+
+#### Handling `active_pipeline_detected` from `pipeline_init`
+
+If `pipeline_init` returns `reason: active_pipeline_detected`, **do not proceed silently**. Surface the conflict to the user:
+
+```
+⚠️ There's already an active pipeline that hasn't been closed:
+
+  Project:  <current_pipeline.project>
+  Feature:  <current_pipeline.feature>
+  Stage:    <current_pipeline.current_stage>
+  Mode:     <current_pipeline.pipeline_mode>
+  Updated:  <current_pipeline.last_updated>
+
+Do you want to abandon it and start a new pipeline for "<requested feature>"?
+If yes, I'll call pipeline_reset (which intentionally overwrites the current state).
+If no, I'll route you into the existing pipeline instead.
+```
+
+- If user confirms **yes** → call `pipeline_reset` (not `pipeline_init`) with `confirm=True`. `pipeline_reset` bypasses the guard by design.
+- If user confirms **no** → discard the pending init request and run §1 intake on the existing pipeline as-is.
 
 ### 9.1 Multi-Item Intake (GAP-I5)
 
