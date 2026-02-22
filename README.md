@@ -75,7 +75,6 @@ No terminal needed after setup. Everything runs from Copilot Chat (with **Orches
 | Say this | What happens |
 |---|---|
 | *"Start a new pipeline for feature: dark mode"* | `pipeline_init` creates state, Orchestrator classifies and routes |
-| *"Switch to auto mode"* | Agents hand off without waiting for your click (alias for assisted) |
 | *"Switch to assisted mode"* | Agents route automatically, gates still require your approval |
 | *"Switch to autopilot mode"* | Agents route + gates auto-satisfied (beta) |
 | *"Approve plan_approved"* | Satisfies a gate — gates are never bypassed in any mode |
@@ -99,7 +98,6 @@ Hotfix fast-track: `intent → implement → tester → closed`
 | **`supervised`** *(default)* | You click every handoff button | You approve every gate | Maximum control |
 | **`assisted`** | Orchestrator routes automatically | You approve every gate | Recommended for most work |
 | **`autopilot`** | Orchestrator routes automatically | Only `intent_approved` requires your approval — all others auto-satisfied, with smart review gate | ⚠️ *Beta — not fully tested. Monitor `PIPELINE_HALT.md` for silent halts.* |
-| ~~`auto`~~ | Deprecated alias for `assisted` | | |
 
 > **`autopilot` caveats:**
 > 1. If a blocking escalation occurs, the pipeline writes `PIPELINE_HALT.md` to your project root and fires a desktop notification — but only if you’re watching VS Code. Check the file after long runs.
@@ -219,9 +217,9 @@ Use this for specialist work that doesn't belong in the main pipeline sequence �
 junai is a living project. Things on the near-term roadmap:
 
 - **VS Code Extension** — one-click install, no `sync.ps1` needed, marketplace listing
-- **MCP Server registry listing** — publish the 7 tools to the MCP registry so any compatible client can discover them
+- **MCP Server registry listing** — publish the 8 tools to the MCP registry so any compatible client can discover them
 - **IDE agnostic** — `.github/` is universal; Cursor, JetBrains, and CLI support planned
-- **And more** — auto mode hardening, a proper user guide, and potentially a self-contained binary for the pipeline runner
+- **And more** — autopilot mode hardening, a proper user guide, and potentially a self-contained binary for the pipeline runner
 
 ---
 
