@@ -220,12 +220,63 @@ Use this for specialist work that doesn't belong in the main pipeline sequence �
 
 ---
 
+## Distribution
+
+Three ways to get junai — pick the one that fits your workflow:
+
+### Option 1 — VS Code Extension (recommended)
+
+Install [junai — Agent Pipeline](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) from the VS Code Marketplace, then run **`junai: Initialize Agent Pipeline`** from the command palette. Deploys all 586 pool files into your workspace in one click — no cloning, no PowerShell.
+
+After init, add the MCP server to `.vscode/mcp.json` (see Option 2 below).
+
+### Option 2 — MCP Server via PyPI (`uvx`, zero setup)
+
+Requires [uv](https://docs.astral.sh/uv/) (`pip install uv` or `winget install astral-sh.uv`).
+
+Add this to your `.vscode/mcp.json`:
+```json
+{
+  "servers": {
+    "junai": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["junai-mcp"]
+    }
+  }
+}
+```
+`uvx` fetches `junai-mcp` from PyPI and runs it in an isolated environment — no venv, no Python path configuration. The 8 pipeline tools appear in the Copilot Chat tools panel (⚙) immediately after VS Code reloads.
+
+> **PyPI package:** [`junai-mcp`](https://pypi.org/project/junai-mcp/) · **MCP Registry:** `io.github.saajunaid/junai-mcp`
+
+### Option 3 — Local venv (if you prefer not to use uvx)
+
+After deploying pool files (extension or `junai-pull`), create a venv and point `.vscode/mcp.json` at the local server:
+```powershell
+python -m venv .venv
+.venv\Scripts\pip install -r .github/tools/mcp-server/requirements.txt -r .github/tools/pipeline-runner/requirements.txt
+```
+```json
+{
+  "servers": {
+    "junai": {
+      "type": "stdio",
+      "command": "${workspaceFolder}\\.venv\\Scripts\\python",
+      "args": ["${workspaceFolder}\\.github\\tools\\mcp-server\\server.py"]
+    }
+  }
+}
+```
+
+---
+
 ## What's Coming
 
 junai is a living project. Things on the near-term roadmap:
 
 - ~~**VS Code Extension**~~ ✅ **Shipped** — [`junai-labs.junai`](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) on the VS Code Marketplace. One-click pool install, no `sync.ps1` needed.
-- **MCP Server registry listing** — publish the 8 tools to the MCP registry so any compatible client can discover them
+- ~~**MCP Server registry listing**~~ ✅ **Shipped** — [`junai-mcp 0.1.1`](https://pypi.org/project/junai-mcp/) on PyPI; registered as `io.github.saajunaid/junai-mcp` on `registry.modelcontextprotocol.io`.
 - **IDE agnostic** — `.github/` is universal; Cursor, JetBrains, and CLI support planned
 - **And more** — autopilot mode hardening, a proper user guide, and potentially a self-contained binary for the pipeline runner
 
