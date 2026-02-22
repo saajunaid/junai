@@ -1,7 +1,8 @@
 # junai — Deterministic Agent Pipeline for VS Code Copilot
 
-> 23 specialised AI agents. A 9-stage deterministic pipeline. No hallucinated routing.  
-> Drop into any project. Run everything from the chat window.
+> 23 specialised AI agents. A 9-stage deterministic pipeline. Zero hallucinated routing.  
+> Drop into any project. Run everything from the chat window.  
+> *Because "trust the LLM to pick the right agent" worked great — right up until it didn't.*
 
 ---
 
@@ -29,11 +30,11 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
 
 ---
 
-## Setup — Path A: New Project (Fastest)
+## Setup — Path A: New Project (Fastest) ⚡
 
 1. Click **"Use this template"** → **"Create a new repository"** on this page
 2. Clone your new repo, open it in VS Code
-3. One-time venv setup (30 seconds):
+3. One-time venv setup (30 seconds — we timed it):
    ```powershell
    python -m venv .venv
    .venv\Scripts\pip install -r tools/mcp-server/requirements.txt -r tools/pipeline-runner/requirements.txt
@@ -41,7 +42,9 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
 4. Reload VS Code — the 7 junai MCP tools appear in the Copilot Chat tools icon (⚙)
 5. Edit `.github/project-config.md` — set your project name and stack
 6. Create `.github/copilot-instructions.md` — add your architecture overview, DB names, key file paths
-7. Open Copilot Chat, type `@Orchestrator` and describe what you want to build
+7. Open Copilot Chat → **select Orchestrator from the agent dropdown** → describe what you want to build
+
+> **VS Code note:** Custom agents aren't invoked via `@AgentName` mentions in chat. Click the agent icon in Copilot Chat and select **Orchestrator** from the list to activate it.
 
 ---
 
@@ -61,13 +64,13 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
    ```
    Deploys `.github/` (agents, skills, prompts, instructions, diagrams) and `tools/` (pipeline runner + MCP server) into your project.
 4. Create venv (same as Path A step 3), reload VS Code
-5. Configure `project-config.md` and `copilot-instructions.md`, then open Copilot Chat
+5. Configure `project-config.md` and `copilot-instructions.md`, then open Copilot Chat → **select Orchestrator from the agent dropdown**
 
 ---
 
 ## Your First Pipeline — Chat Commands
 
-No terminal needed after setup. Everything runs from Copilot Chat:
+No terminal needed after setup. Everything runs from Copilot Chat (with **Orchestrator** selected):
 
 | Say this | What happens |
 |---|---|
@@ -89,10 +92,10 @@ Hotfix fast-track: `intent → implement → tester → closed`
 
 ## Supervised vs Auto Mode
 
-- **Supervised (default):** Orchestrator presents a handoff button after each stage. You click to proceed. Gates require explicit approval.
-- **Auto:** Orchestrator invokes the next agent immediately after completion. Gates still require your approval — they cannot be bypassed.
+- **Supervised (default):** Orchestrator presents a handoff after each stage. You click to proceed. Gates require explicit approval.
+- **Auto:** Orchestrator invokes the next agent immediately after completion. Gates still require your approval — they cannot be bypassed. Sleep easy.
 
-Switch at any time: *"Switch to auto mode"* or *"Switch to supervised mode"* in chat.
+Switch at any time: *"Switch to auto mode"* or *"Switch to supervised mode"* in chat (Orchestrator selected).
 
 ---
 
@@ -151,7 +154,37 @@ See `.github/pipeline/cheatsheet.md` for the full reference.
 
 ---
 
-*Built by Junaid — because AI agents that hallucinate their own routing were getting old.*
+## What's Coming
+
+junai is a living project. Things on the near-term roadmap:
+
+- **VS Code Extension** — one-click install, no `sync.ps1` needed, marketplace listing
+- **MCP Server registry listing** — publish the 7 tools to the MCP registry so any compatible client can discover them
+- **IDE agnostic** — `.github/` is universal; Cursor, JetBrains, and CLI support planned
+- **And more** — auto mode hardening, a proper user guide, and potentially a self-contained binary for the pipeline runner
+
+---
+
+## Credits & Inspiration
+
+junai's agents, skills, prompts, and instruction files were built from scratch, battle-tested, and adapted over months. The following open resources were genuinely useful along the way — if junai helps you, these deserve credit too:
+
+| Resource | What we took from it |
+|---|---|
+| [github/awesome-copilot](https://github.com/github/awesome-copilot) | Copilot instruction patterns and `.github/copilot-instructions.md` conventions |
+| [anthropics/skills](https://github.com/anthropics/skills) | Claude-style skill composition and context injection patterns |
+| [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) | Agent skill structure and capability registry approach |
+| [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code) | Comprehensive agent patterns and tool-use examples |
+
+---
+
+## The Origin Story
+
+This wasn't built in a weekend.
+
+Months of trial and error, dead-end architectures, broken routing logic, and a painful number of "why did it just skip straight to implement?!" moments went into making junai feel boring and predictable — which is exactly the point. Every design decision you see here (deterministic state machine, `confirm=True` safeguards, gate-first approvals, pool-based portability) came from real pain building real projects.
+
+If you find it useful, give it a star. If you find a bug, open an issue. If you build something with it, we'd genuinely love to hear about it.
 
 ---
 
@@ -159,44 +192,24 @@ See `.github/pipeline/cheatsheet.md` for the full reference.
 
 ```
 .github/
-├── agents/          22 specialised AI agents (Architect, Implement, Debug, etc.)
+├── agents/          23 specialised AI agents (Architect, Implement, Debug, etc.)
 ├── skills/          70+ reusable skills (coding, data, frontend, workflow, devops)
-├── prompts/         28 prompt templates (advisory-hub, plan, code-review, etc.)
-├── instructions/    22 instruction files (python, fastapi, streamlit, security, etc.)
+├── prompts/         30 prompt templates (advisory-hub, plan, code-review, etc.)
+├── instructions/    23 instruction files (python, fastapi, streamlit, security, etc.)
 ├── diagrams/        Agent workflow reference cards and design docs
 └── project-config.md  ← The only file you edit per project
+tools/
+├── mcp-server/      7 MCP tools (pipeline_init, pipeline_reset, status, etc.)
+└── pipeline-runner/ Python state machine — the deterministic routing engine
 ```
 
-## Quick Start
+---
 
-### 1. Copy the pool into your project
+## License
 
-Dot-source `sync.ps1` in your PowerShell profile (once):
+MIT — free to use, fork, and adapt. See [LICENSE](LICENSE) for the full text.
 
-```powershell
-# In $PROFILE:
-. 'E:\Projects\junai\sync.ps1'
-```
-
-Then run from any project root:
-
-```powershell
-junai-pull          # copies agents, skills, prompts, instructions, diagrams into .github/
-```
-
-### 2. Configure your project
-
-Edit `.github/project-config.md` — either set the `profile` field to a named profile, or fill in Step 2 with your project values.
-
-### 3. Add your project's `copilot-instructions.md`
-
-This is **not** in the pool — it's project-specific. Create `.github/copilot-instructions.md` with your project's:
-
-- Architecture overview
-- Stack details
-- DB connection info
-- Data source tables
-- Key file paths
+If you build something cool on top of junai, attribution is appreciated but not required. A shoutout would make our day though.
 
 Agents read `project-config.md` for brand/stack config and `copilot-instructions.md` for project architecture context.
 
