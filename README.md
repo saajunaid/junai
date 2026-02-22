@@ -154,6 +154,55 @@ See `.github/pipeline/cheatsheet.md` for the full reference.
 
 ---
 
+## Extending the Pipeline With Your Own Agents
+
+The pipeline is plug-and-play — no Python changes, no restarts. There are two kinds of extension:
+
+### Pipeline-integrated agent (routed by the Orchestrator)
+
+Your agent becomes a first-class pipeline citizen: the state machine routes to it, tracks its completion, and advances to the next stage automatically.
+
+**3 steps:**
+
+**1. Add a `stages` entry in `agents.registry.json`**
+```json
+"my_stage": {
+  "agent": "my-agent",
+  "agent_file": ".github/agents/my-agent.agent.md",
+  "description": "Does the thing",
+  "required_artefacts": ["agent-docs/my-stage/"],
+  "completion_event": "my_stage_complete"
+}
+```
+
+**2. Add `transitions` entries pointing to/from your stage**
+```json
+{ "id": "T-28", "from": "plan", "to": "my_stage", "event": "plan_approved", "guard": null },
+{ "id": "T-29", "from": "my_stage", "to": "implement", "event": "my_stage_complete", "guard": null }
+```
+
+**3. Write your `.agent.md` with the §8 Completion Reporting Protocol**
+
+Every pipeline-integrated agent must end its work by calling `notify_orchestrator` and then HARD STOP — this is how the state machine knows the stage is done.
+
+Copy the §8 block from any existing agent (e.g., `.github/agents/implement.agent.md`) and adapt the `stage_completed` and `artefact_path` values. The critical lines:
+```
+notify_orchestrator(stage_completed="my_stage", result_status="success", artefact_path="agent-docs/my-stage/")
+HARD STOP — do not continue after calling notify_orchestrator.
+```
+
+That's it. Run `pipeline transitions` to verify your new T-28 and T-29 appear correctly.
+
+---
+
+### Ad-hoc agent (called by you, not the Orchestrator)
+
+No registry. No transitions. Just create a `.github/agents/my-agent.agent.md` and call it directly by selecting it from the agent dropdown in Copilot Chat.
+
+Use this for specialist work that doesn't belong in the main pipeline sequence — a SQL Expert you call on demand, a diagram generator, a one-off security scan. The §8 protocol is optional for ad-hoc agents (but worth including if you ever want to pipeline-promote the agent later).
+
+---
+
 ## What's Coming
 
 junai is a living project. Things on the near-term roadmap:
