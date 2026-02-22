@@ -43,6 +43,14 @@ function junai-pull {
         }
     }
 
+    # Deploy tools/ to project root (pipeline runner + MCP server)
+    $toolsSrc = Join-Path $JUNO_POOL "tools"
+    if (Test-Path $toolsSrc) {
+        $toolsTarget = Join-Path $ProjectRoot "tools"
+        Copy-Item $toolsSrc $toolsTarget -Recurse -Force
+        Write-Host "  [OK]  tools" -ForegroundColor Green
+    }
+
     Write-Host ""
     Write-Host "  Done. project-config.md was NOT overwritten." -ForegroundColor DarkGray
     Write-Host ""
@@ -76,6 +84,13 @@ function junai-push {
         }
     }
 
+    # Sync tools/ back to junai pool
+    $toolsSrc = Join-Path $ProjectRoot "tools"
+    if (Test-Path $toolsSrc) {
+        Copy-Item $toolsSrc $JUNO_POOL -Recurse -Force
+        Write-Host "  [OK]  tools" -ForegroundColor Green
+    }
+
     # Commit and push junai
     Push-Location $JUNO_POOL
 
@@ -87,7 +102,7 @@ function junai-push {
         return
     }
 
-    git add .github/agents .github/skills .github/prompts .github/instructions .github/diagrams | Out-Null
+    git add .github/agents .github/skills .github/prompts .github/instructions .github/diagrams tools | Out-Null
 
     if ([string]::IsNullOrWhiteSpace($Message)) {
         $projectName = Split-Path $ProjectRoot -Leaf
@@ -138,6 +153,13 @@ function junai-export {
         } else {
             Write-Host "  [--]  $folder - not found, skipped" -ForegroundColor Yellow
         }
+    }
+
+    # Include tools/
+    $toolsSrc = Join-Path $JUNO_POOL "tools"
+    if (Test-Path $toolsSrc) {
+        Copy-Item $toolsSrc $OutputPath -Recurse -Force
+        Write-Host "  [OK]  tools" -ForegroundColor Green
     }
 
     # Include the sync script itself so the target can dot-source it
@@ -205,6 +227,14 @@ function junai-import {
         } else {
             Write-Host "  [--]  $folder - not in export, skipped" -ForegroundColor Yellow
         }
+    }
+
+    # Deploy tools/ to project root
+    $toolsSrc = Join-Path $SourcePath "tools"
+    if (Test-Path $toolsSrc) {
+        $toolsTarget = Join-Path $ProjectRoot "tools"
+        Copy-Item $toolsSrc $toolsTarget -Recurse -Force
+        Write-Host "  [OK]  tools" -ForegroundColor Green
     }
 
     if ($tmpExtract -and (Test-Path $tmpExtract)) {
