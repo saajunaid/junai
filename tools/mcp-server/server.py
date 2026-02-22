@@ -464,6 +464,83 @@ async def pipeline_reset(
     )
 
 
+@mcp.tool()
+async def run_command(
+    command: str,
+    timeout: int = 60,
+    max_output_chars: int = 20000,
+) -> dict[str, Any]:
+    """Execute a shell command in the workspace root and return stdout, stderr, exit code.
+
+    Use this for running tests (pytest, playwright), linters (black, ruff),
+    formatters, build steps, or any other shell command the pipeline needs to
+    execute hands-free. Agents should prefer this over asking the user to run
+    commands manually in a terminal.
+
+    Args:
+        command: Shell command to run (e.g. ".venv/Scripts/pytest tests/ -v").
+                 Executed in the workspace root directory with shell=True.
+        timeout: Seconds before the process is killed. Default 60s. Increase for
+                 long test suites, Playwright runs, or slow build steps.
+        max_output_chars: Truncate combined output to this many characters to
+                          avoid flooding the context window. Default 20000.
+    """
+    import asyncio
+
+    try:
+        process = await asyncio.create_subprocess_shell(
+            command,
+            cwd=str(WORKSPACE_ROOT),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                process.communicate(), timeout=float(timeout)
+            )
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.communicate()
+            return {
+                "success": False,
+                "exit_code": -1,
+                "command": command,
+                "reason": f"Command timed out after {timeout}s",
+                "output": "",
+                "truncated": False,
+                "cwd": str(WORKSPACE_ROOT),
+            }
+
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        stderr = stderr_bytes.decode("utf-8", errors="replace")
+        combined = (stdout + ("\n" + stderr if stderr.strip() else "")).strip()
+
+        truncated = False
+        if len(combined) > max_output_chars:
+            combined = combined[:max_output_chars] + "\n[...output truncated]"
+            truncated = True
+
+        return {
+            "success": process.returncode == 0,
+            "exit_code": process.returncode,
+            "command": command,
+            "output": combined,
+            "truncated": truncated,
+            "cwd": str(WORKSPACE_ROOT),
+        }
+
+    except Exception as exc:
+        return {
+            "success": False,
+            "exit_code": -1,
+            "command": command,
+            "reason": str(exc),
+            "output": "",
+            "truncated": False,
+            "cwd": str(WORKSPACE_ROOT),
+        }
+
+
 def main() -> None:
     mcp.run()
 
