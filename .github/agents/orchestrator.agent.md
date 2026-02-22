@@ -224,7 +224,7 @@ You MAY directly edit `pipeline-state.json` for **runtime fields only**:
 - `supervision_gates[*]`
 - `_notes.*`
 
-You MUST **never** directly edit these fields — use the MCP tools instead:
+You MUST **never** directly edit these fields in `pipeline-state.json` — use the MCP tools instead:
 
 | Field | Correct tool |
 |---|---|
@@ -233,7 +233,9 @@ You MUST **never** directly edit these fields — use the MCP tools instead:
 | `pipeline_mode` | `set_pipeline_mode` |
 | `supervision_gates[*]` (satisfying a gate) | `satisfy_gate` |
 
-**Rationale:** `pipeline_init` contains an active-pipeline guard that prevents accidental overwrites of non-closed pipelines. Bypassing it via direct `editFiles` silently skips that guard. If you feel the need to rename the feature slug or re-initialise the pipeline state, call the appropriate MCP tool — never write those fields directly.
+This restriction applies **only to `pipeline-state.json`**. You may freely use `editFiles` on any other file (artefacts, plans, code, docs, etc.) as needed.
+
+**Rationale:** `pipeline_init` contains an active-pipeline guard that prevents accidental overwrites of non-closed pipelines. Bypassing it via direct `editFiles` on `pipeline-state.json` silently skips that guard. If you feel the need to rename the feature slug or re-initialise the pipeline state, call the appropriate MCP tool — never write those fields directly.
 
 ---
 
