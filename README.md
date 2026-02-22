@@ -37,7 +37,7 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
 ---
 
 ## Setup — Path A: New Project (Fastest) ⚡
-
+> **Fastest of all:** Install the [junai — Agent Pipeline](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) VS Code extension, open any project, run **`junai: Initialize Agent Pipeline`** from the command palette, and skip straight to step 3 below. No cloning, no PowerShell needed.
 1. Click **"Use this template"** → **"Create a new repository"** on this page
 2. Clone your new repo, open it in VS Code
 3. One-time venv setup (30 seconds — we timed it):
@@ -222,7 +222,7 @@ Use this for specialist work that doesn't belong in the main pipeline sequence �
 
 junai is a living project. Things on the near-term roadmap:
 
-- **VS Code Extension** — one-click install, no `sync.ps1` needed, marketplace listing
+- ~~**VS Code Extension**~~ ✅ **Shipped** — [`junai-labs.junai`](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) on the VS Code Marketplace. One-click pool install, no `sync.ps1` needed.
 - **MCP Server registry listing** — publish the 8 tools to the MCP registry so any compatible client can discover them
 - **IDE agnostic** — `.github/` is universal; Cursor, JetBrains, and CLI support planned
 - **And more** — autopilot mode hardening, a proper user guide, and potentially a self-contained binary for the pipeline runner
