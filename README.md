@@ -12,7 +12,7 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
 
 - **23 specialised agents** — Architect, Implement, Tester, Code Reviewer, Debug, Security Analyst, and more
 - **A deterministic pipeline** — a Python state machine owns all routing logic; the LLM cannot hallucinate the wrong next step
-- **Supervised and auto modes** — you control whether agents wait for your gate approval or run autonomously
+- **Three pipeline modes** — supervised (you approve everything), assisted (agents route, you approve gates), and autopilot ⚠️ *(beta — agents route, smart gates, only intent requires approval)*
 - **70+ reusable skills, 30 prompts, 23 instruction files** — loaded dynamically by agents as needed
 - **Chat-first UX** — init, reset, mode switch, gate approval all from the Copilot chat window
 
@@ -75,7 +75,9 @@ No terminal needed after setup. Everything runs from Copilot Chat (with **Orches
 | Say this | What happens |
 |---|---|
 | *"Start a new pipeline for feature: dark mode"* | `pipeline_init` creates state, Orchestrator classifies and routes |
-| *"Switch to auto mode"* | Agents hand off without waiting for your click |
+| *"Switch to auto mode"* | Agents hand off without waiting for your click (alias for assisted) |
+| *"Switch to assisted mode"* | Agents route automatically, gates still require your approval |
+| *"Switch to autopilot mode"* | Agents route + gates auto-satisfied (beta) |
 | *"Approve plan_approved"* | Satisfies a gate — gates are never bypassed in any mode |
 | *"What stage are we at?"* | Returns current stage, mode, blocked_by |
 | *"Reset pipeline for next feature: X"* | Wipes state and starts fresh |
@@ -90,12 +92,20 @@ Hotfix fast-track: `intent → implement → tester → closed`
 
 ---
 
-## Supervised vs Auto Mode
+## Pipeline Modes
 
-- **Supervised (default):** Orchestrator presents a handoff after each stage. You click to proceed. Gates require explicit approval.
-- **Auto:** Orchestrator invokes the next agent immediately after completion. Gates still require your approval — they cannot be bypassed. Sleep easy.
+| Mode | Handoffs | Gates | Notes |
+|---|---|---|---|
+| **`supervised`** *(default)* | You click every handoff button | You approve every gate | Maximum control |
+| **`assisted`** | Orchestrator routes automatically | You approve every gate | Recommended for most work |
+| **`autopilot`** | Orchestrator routes automatically | Only `intent_approved` requires your approval — all others auto-satisfied, with smart review gate | ⚠️ *Beta — not fully tested. Monitor `PIPELINE_HALT.md` for silent halts.* |
+| ~~`auto`~~ | Deprecated alias for `assisted` | | |
 
-Switch at any time: *"Switch to auto mode"* or *"Switch to supervised mode"* in chat (Orchestrator selected).
+> **`autopilot` caveats:**
+> 1. If a blocking escalation occurs, the pipeline writes `PIPELINE_HALT.md` to your project root and fires a desktop notification — but only if you’re watching VS Code. Check the file after long runs.
+> 2. Architecture decisions (`adr_approved`) are auto-approved: a poor architecture is silently accepted and built on. Use `supervised` or `assisted` for complex or unfamiliar features.
+
+Switch at any time in chat (Orchestrator selected): *"Switch to assisted mode"* / *"Switch to autopilot mode"* / *"Switch to supervised mode"*
 
 ---
 
@@ -110,7 +120,7 @@ Switch at any time: *"Switch to auto mode"* or *"Switch to supervised mode"* in 
 
 ---
 
-## MCP Tools (7 total)
+## MCP Tools (8 total)
 
 Available via natural language in Copilot Chat — or directly in the tools panel:
 
@@ -118,11 +128,12 @@ Available via natural language in Copilot Chat — or directly in the tools pane
 |---|---|
 | `pipeline_init` | Start a new pipeline (confirm=true required) |
 | `pipeline_reset` | Reset for next feature (confirm=true required) |
-| `set_pipeline_mode` | Switch supervised ↔ auto |
+| `set_pipeline_mode` | Switch between supervised / assisted / autopilot |
 | `satisfy_gate` | Approve a supervision gate |
 | `get_pipeline_status` | Current stage, mode, blocked_by, next transition |
 | `notify_orchestrator` | Record stage completion + compute next transition |
 | `validate_deferred_paths` | Verify deferred item file paths before pipeline close |
+| `run_command` | Execute any shell command (tests, lint, format) — enables hands-free test runs |
 
 ---
 
@@ -144,7 +155,7 @@ junai-import <path>      # restore from export bundle
 ```powershell
 python tools/pipeline-runner/pipeline_runner.py status
 python tools/pipeline-runner/pipeline_runner.py init --project <name> --feature <slug> --type feature|hotfix --force
-python tools/pipeline-runner/pipeline_runner.py mode --value supervised|auto
+python tools/pipeline-runner/pipeline_runner.py mode --value supervised|assisted|autopilot
 python tools/pipeline-runner/pipeline_runner.py gate --name <gate_name>
 python tools/pipeline-runner/pipeline_runner.py next
 python tools/pipeline-runner/pipeline_runner.py transitions

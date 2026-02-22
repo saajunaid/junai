@@ -16,7 +16,8 @@ DEFAULT_PIPELINE_STATE = WORKSPACE_ROOT / ".github" / "pipeline-state.json"
 PIPELINE_STATE_PATH = Path(
     os.getenv("PIPELINE_STATE_PATH", str(DEFAULT_PIPELINE_STATE))
 )
-ALLOWED_PIPELINE_MODES = {"supervised", "auto"}
+# "auto" kept as deprecated alias for "assisted" for backwards compatibility
+ALLOWED_PIPELINE_MODES = {"supervised", "auto", "assisted", "autopilot"}
 ALLOWED_SUPERVISION_GATES = {
     "intent_approved",
     "adr_approved",

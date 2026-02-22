@@ -174,7 +174,7 @@
       "from_stage": "review",
       "to_stage": "implement",
       "event": "revision-requested",
-      "guards": [],
+      "guards": ["review_retry_budget_remaining"],
       "gate": null,
       "hotfix_only": false,
       "priority": 10
@@ -248,6 +248,28 @@
       "gate": null,
       "hotfix_only": false,
       "priority": 0
+    },
+    {
+      "id": "T-28",
+      "from_stage": "tester",
+      "to_stage": "debug",
+      "event": "failed",
+      "guards": ["retry_budget_exhausted", "pipeline_mode_autopilot"],
+      "gate": null,
+      "hotfix_only": false,
+      "priority": 8,
+      "_comment": "autopilot only: tester budget exhausted → auto-route to Debug instead of BLOCKED"
+    },
+    {
+      "id": "T-29",
+      "from_stage": "review",
+      "to_stage": "BLOCKED",
+      "event": "revision-requested",
+      "guards": ["review_retry_budget_exhausted"],
+      "gate": null,
+      "hotfix_only": false,
+      "priority": 5,
+      "_comment": "all modes: review retry budget exhausted → HALT pipeline (autopilot writes sentinel file)"
     },
     {
       "id": "T-24",

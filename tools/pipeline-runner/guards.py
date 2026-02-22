@@ -289,6 +289,54 @@ def ui_track_not_enabled(
     return True, None
 
 
+def review_retry_budget_remaining(
+    state: PipelineState,
+    _event: CompletionEvent,
+    _workspace_root: Path,
+) -> tuple[bool, str | None]:
+    review = _stage_record(state, "review")
+    retry_count = int(review.get("retry_count", 0))
+    max_retries = int(review.get("max_retries", 3))
+    if retry_count < max_retries:
+        return True, None
+    return False, "Review retry budget exhausted"
+
+
+def review_retry_budget_exhausted(
+    state: PipelineState,
+    _event: CompletionEvent,
+    _workspace_root: Path,
+) -> tuple[bool, str | None]:
+    review = _stage_record(state, "review")
+    retry_count = int(review.get("retry_count", 0))
+    max_retries = int(review.get("max_retries", 3))
+    if retry_count >= max_retries:
+        return True, None
+    return False, "Review retry budget remains"
+
+
+def pipeline_mode_autopilot(
+    state: PipelineState,
+    _event: CompletionEvent,
+    _workspace_root: Path,
+) -> tuple[bool, str | None]:
+    if (state.pipeline_mode or "").strip().lower() == "autopilot":
+        return True, None
+    return False, "pipeline_mode is not autopilot"
+
+
+def pipeline_mode_assisted(
+    state: PipelineState,
+    _event: CompletionEvent,
+    _workspace_root: Path,
+) -> tuple[bool, str | None]:
+    mode = (state.pipeline_mode or "").strip().lower()
+    # "auto" is the deprecated alias for "assisted"
+    if mode in ("assisted", "auto"):
+        return True, None
+    return False, "pipeline_mode is not assisted"
+
+
 def pipeline_mode_auto(
     state: PipelineState,
     _event: CompletionEvent,
@@ -326,6 +374,8 @@ GUARD_REGISTRY: dict[str, GuardFunction] = {
     "more_phases_remain": more_phases_remain,
     "retry_budget_remaining": retry_budget_remaining,
     "retry_budget_exhausted": retry_budget_exhausted,
+    "review_retry_budget_remaining": review_retry_budget_remaining,
+    "review_retry_budget_exhausted": review_retry_budget_exhausted,
     "has_security_deferrals": has_security_deferrals,
     "no_security_deferrals": no_security_deferrals,
     "no_security_deferrals_pending": no_security_deferrals_pending,
@@ -339,6 +389,8 @@ GUARD_REGISTRY: dict[str, GuardFunction] = {
     "ui_track_not_enabled": ui_track_not_enabled,
     "pipeline_mode_auto": pipeline_mode_auto,
     "pipeline_mode_supervised": pipeline_mode_supervised,
+    "pipeline_mode_assisted": pipeline_mode_assisted,
+    "pipeline_mode_autopilot": pipeline_mode_autopilot,
     "blocked_cleared": blocked_cleared,
 }
 

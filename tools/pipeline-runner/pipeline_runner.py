@@ -12,7 +12,8 @@ from transitions import TRANSITIONS, Transition, _REGISTRY_PATH
 
 
 DEFAULT_STATE_PATH = Path(".github/pipeline-state.json")
-ALLOWED_PIPELINE_MODES = {"supervised", "auto"}
+# "auto" kept as deprecated alias for "assisted" for backwards compatibility
+ALLOWED_PIPELINE_MODES = {"supervised", "auto", "assisted", "autopilot"}
 ALLOWED_SUPERVISION_GATES = {
     "intent_approved",
     "adr_approved",
@@ -98,12 +99,25 @@ def _matches_transition(state: PipelineState, event: CompletionEvent, transition
     return True
 
 
+def _effective_mode(mode: str | None) -> str:
+    """Normalise deprecated 'auto' alias to 'assisted'."""
+    if (mode or "").strip().lower() == "auto":
+        return "assisted"
+    return (mode or "supervised").strip().lower()
+
+
 def _gate_satisfied(state: PipelineState, gate_name: str | None) -> bool:
     if gate_name is None:
         return True
-    if state.pipeline_mode == "auto":
+    mode = _effective_mode(state.pipeline_mode)
+    if mode == "autopilot":
+        # intent_approved always requires explicit human approval in every mode
+        if gate_name == "intent_approved":
+            gates = state.supervision_gates.model_dump()
+            return bool(gates.get(gate_name, False))
+        # all other gates are auto-satisfied by Orchestrator in autopilot
         return True
-
+    # supervised and assisted: check actual gate state
     gates = state.supervision_gates.model_dump()
     return bool(gates.get(gate_name, False))
 
@@ -275,11 +289,14 @@ def _resolve_upstream_path(workspace_root: Path, raw_path: str) -> Path:
 
 
 def _increment_retries(state: PipelineState, event: CompletionEvent) -> None:
-    if event.stage_completed != "tester" or event.result_status != "failed":
-        return
-    tester = state.stages.get("tester", {})
-    retry_count = int(tester.get("retry_count", 0))
-    tester["retry_count"] = retry_count + 1
+    if event.stage_completed == "tester" and event.result_status == "failed":
+        tester = state.stages.get("tester", {})
+        retry_count = int(tester.get("retry_count", 0))
+        tester["retry_count"] = retry_count + 1
+    elif event.stage_completed == "review" and event.result_status == "revision-requested":
+        review = state.stages.get("review", {})
+        retry_count = int(review.get("retry_count", 0))
+        review["retry_count"] = retry_count + 1
 
 
 def _advance_state(state: PipelineState, event: CompletionEvent, result: TransitionResult) -> PipelineState:
@@ -423,7 +440,7 @@ def main() -> None:
         requested_mode = args.value.strip().lower()
         if requested_mode not in ALLOWED_PIPELINE_MODES:
             _print_json_error(
-                "invalid pipeline mode. expected one of: supervised, auto"
+                "invalid pipeline mode. expected one of: supervised, assisted, autopilot (deprecated: auto)"
             )
         state.pipeline_mode = requested_mode
         _save_state(state_file, state)
