@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "junai-pipeline": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "args": [
+        "${workspaceFolder}/tools/mcp-server/server.py"
+      ],
+      "env": {
+        "PIPELINE_STATE_PATH": "${workspaceFolder}/.github/pipeline-state.json"
+      }
+    }
+  }
+}
