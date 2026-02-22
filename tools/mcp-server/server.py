@@ -318,6 +318,118 @@ async def satisfy_gate(gate_name: str) -> dict[str, Any]:
     }
 
 
+@mcp.tool()
+async def pipeline_init(
+    project: str,
+    feature: str,
+    type: str = "feature",
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Initialise a new pipeline state file from the template.
+
+    Requires confirm=True to proceed — this prevents accidental invocation
+    mid-run. Use when starting a brand-new feature or hotfix pipeline.
+    If a pipeline-state.json already exists, it will be overwritten.
+    """
+    if not confirm:
+        return {
+            "success": False,
+            "reason": (
+                "confirm must be True to initialise a new pipeline. "
+                "This will overwrite any existing pipeline-state.json. "
+                "Set confirm=True only when the user has explicitly requested a new pipeline."
+            ),
+        }
+
+    allowed_types = {"feature", "hotfix"}
+    pipeline_type = type.strip().lower()
+    if pipeline_type not in allowed_types:
+        return {
+            "success": False,
+            "reason": f"invalid type '{type}'. expected one of: feature, hotfix",
+        }
+
+    runner_path = WORKSPACE_ROOT / "tools" / "pipeline-runner" / "pipeline_runner.py"
+    if not runner_path.exists():
+        return {
+            "success": False,
+            "reason": "pipeline-runner not found at tools/pipeline-runner/pipeline_runner.py",
+        }
+
+    command = [
+        sys.executable,
+        str(runner_path),
+        "init",
+        "--project", project.strip(),
+        "--feature", feature.strip(),
+        "--type", pipeline_type,
+        "--state-file", str(PIPELINE_STATE_PATH),
+        "--force",
+    ]
+
+    result = subprocess.run(
+        command,
+        cwd=str(WORKSPACE_ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        return {
+            "success": False,
+            "reason": "pipeline init failed",
+            "stderr": result.stderr.strip(),
+            "stdout": result.stdout.strip(),
+        }
+
+    return {
+        "success": True,
+        "project": project.strip(),
+        "feature": feature.strip(),
+        "type": pipeline_type,
+        "state_file": str(PIPELINE_STATE_PATH),
+        "message": (
+            f"Pipeline initialised for '{project.strip()}' / '{feature.strip()}' "
+            f"({pipeline_type}). pipeline_mode is supervised by default. "
+            "Use set_pipeline_mode to switch to auto if desired."
+        ),
+    }
+
+
+@mcp.tool()
+async def pipeline_reset(
+    project: str,
+    feature: str,
+    type: str = "feature",
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Reset the current pipeline state and start a new pipeline run.
+
+    Identical to pipeline_init but semantically signals resetting an
+    existing pipeline rather than creating a fresh one. Requires confirm=True.
+    Use when a pipeline has closed and the user wants to start the next feature,
+    or when explicitly restarting a failed/stale pipeline.
+    """
+    if not confirm:
+        return {
+            "success": False,
+            "reason": (
+                "confirm must be True to reset the pipeline. "
+                "This will overwrite the existing pipeline-state.json. "
+                "Set confirm=True only when the user has explicitly requested a reset."
+            ),
+        }
+
+    # Delegate to pipeline_init with confirm already validated
+    return await pipeline_init(
+        project=project,
+        feature=feature,
+        type=type,
+        confirm=True,
+    )
+
+
 def main() -> None:
     mcp.run()
 
