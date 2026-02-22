@@ -224,17 +224,20 @@ Use this for specialist work that doesn't belong in the main pipeline sequence �
 
 Three ways to get junai — pick the one that fits your workflow:
 
-### Option 1 — VS Code Extension (recommended)
+### Option 1 — VS Code Extension (zero setup) ⚡
 
-Install [junai — Agent Pipeline](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) from the VS Code Marketplace, then run **`junai: Initialize Agent Pipeline`** from the command palette. Deploys all 586 pool files into your workspace in one click — no cloning, no PowerShell.
+Install [junai — Agent Pipeline](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) from the VS Code Marketplace, then run **`junai: Initialize Agent Pipeline`** from the command palette.
 
-After init, add the MCP server to `.vscode/mcp.json` (see Option 2 below).
+That's it. The extension:
+- Deploys all 587 pool files (`.github/agents/`, `.github/skills/`, `.github/tools/`, etc.) into your workspace
+- Scaffolds `pipeline-state.json`
+- Automatically writes `.vscode/mcp.json` with the `uvx junai-mcp` entry
 
-### Option 2 — MCP Server via PyPI (`uvx`, zero setup)
+VS Code will prompt to start the MCP server — accept it, and the 8 pipeline tools appear in the Copilot Chat tools panel (⚙) immediately. **No terminal, no venv, no manual config required.** Requires [uv](https://docs.astral.sh/uv/) on your PATH (`winget install astral-sh.uv` / `brew install uv` / `pip install uv`).
 
-Requires [uv](https://docs.astral.sh/uv/) (`pip install uv` or `winget install astral-sh.uv`).
+### Option 2 — Manual MCP config (if you already have pool files)
 
-Add this to your `.vscode/mcp.json`:
+If you deployed pool files via `junai-pull` or the GitHub template, add this to `.vscode/mcp.json` manually:
 ```json
 {
   "servers": {
@@ -246,13 +249,12 @@ Add this to your `.vscode/mcp.json`:
   }
 }
 ```
-`uvx` fetches `junai-mcp` from PyPI and runs it in an isolated environment — no venv, no Python path configuration. The 8 pipeline tools appear in the Copilot Chat tools panel (⚙) immediately after VS Code reloads.
 
 > **PyPI package:** [`junai-mcp`](https://pypi.org/project/junai-mcp/) · **MCP Registry:** `io.github.saajunaid/junai-mcp`
 
-### Option 3 — Local venv (if you prefer not to use uvx)
+### Option 3 — Local venv (no uv, air-gapped, or offline)
 
-After deploying pool files (extension or `junai-pull`), create a venv and point `.vscode/mcp.json` at the local server:
+After deploying pool files, create a venv and point `.vscode/mcp.json` at the local server:
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install -r .github/tools/mcp-server/requirements.txt -r .github/tools/pipeline-runner/requirements.txt
