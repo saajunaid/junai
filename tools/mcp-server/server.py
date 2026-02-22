@@ -324,12 +324,16 @@ async def pipeline_init(
     feature: str,
     type: str = "feature",
     confirm: bool = False,
+    _bypass_active_check: bool = False,
 ) -> dict[str, Any]:
     """Initialise a new pipeline state file from the template.
 
     Requires confirm=True to proceed — this prevents accidental invocation
     mid-run. Use when starting a brand-new feature or hotfix pipeline.
     If a pipeline-state.json already exists, it will be overwritten.
+
+    _bypass_active_check is an internal flag used by pipeline_reset to skip
+    the active-pipeline guard. Do not set this from user-facing calls.
     """
     if not confirm:
         return {
@@ -340,6 +344,33 @@ async def pipeline_init(
                 "Set confirm=True only when the user has explicitly requested a new pipeline."
             ),
         }
+
+    # Guard: refuse to overwrite an active (non-closed) pipeline unless bypass is set.
+    # pipeline_reset always passes _bypass_active_check=True — it is the safe path for
+    # intentional restarts. pipeline_init is the strict path for fresh starts.
+    if not _bypass_active_check and PIPELINE_STATE_PATH.exists():
+        try:
+            existing = json.loads(PIPELINE_STATE_PATH.read_text(encoding="utf-8"))
+            existing_stage = existing.get("current_stage", "")
+            if existing_stage and existing_stage != "closed":
+                return {
+                    "success": False,
+                    "reason": "active_pipeline_detected",
+                    "message": (
+                        "A pipeline is already active and not closed. "
+                        "Use pipeline_reset to intentionally restart, "
+                        "or close the current pipeline first."
+                    ),
+                    "current_pipeline": {
+                        "project": existing.get("project"),
+                        "feature": existing.get("feature"),
+                        "current_stage": existing_stage,
+                        "pipeline_mode": existing.get("pipeline_mode", "supervised"),
+                        "last_updated": existing.get("last_updated"),
+                    },
+                }
+        except (json.JSONDecodeError, OSError):
+            pass  # Corrupt/unreadable state — allow init to overwrite
 
     allowed_types = {"feature", "hotfix"}
     pipeline_type = type.strip().lower()
@@ -421,12 +452,15 @@ async def pipeline_reset(
             ),
         }
 
-    # Delegate to pipeline_init with confirm already validated
+    # Delegate to pipeline_init with confirm already validated.
+    # _bypass_active_check=True: pipeline_reset is explicit user intent to restart —
+    # the active-pipeline guard does not apply here.
     return await pipeline_init(
         project=project,
         feature=feature,
         type=type,
         confirm=True,
+        _bypass_active_check=True,
     )
 
 
