@@ -216,6 +216,25 @@ On first invocation:
 - You do NOT make design decisions
 - You are a **router and validator**, not an executor
 
+#### Direct edits to `pipeline-state.json` — strict rules
+
+You MAY directly edit `pipeline-state.json` for **runtime fields only**:
+- `blocked_by` (set or clear)
+- `stages[*].status`, `stages[*].artefact`, `stages[*].completed_at`
+- `supervision_gates[*]`
+- `_notes.*`
+
+You MUST **never** directly edit these fields — use the MCP tools instead:
+
+| Field | Correct tool |
+|---|---|
+| `project`, `feature`, `type` (initialisation) | `pipeline_init` or `pipeline_reset` |
+| `current_stage` reset to `intent` | `pipeline_init` or `pipeline_reset` |
+| `pipeline_mode` | `set_pipeline_mode` |
+| `supervision_gates[*]` (satisfying a gate) | `satisfy_gate` |
+
+**Rationale:** `pipeline_init` contains an active-pipeline guard that prevents accidental overwrites of non-closed pipelines. Bypassing it via direct `editFiles` silently skips that guard. If you feel the need to rename the feature slug or re-initialise the pipeline state, call the appropriate MCP tool — never write those fields directly.
+
 ---
 
 ### 9. Intake Protocol (GAP-012)
