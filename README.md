@@ -1,8 +1,14 @@
-# junai — Deterministic Agent Pipeline for VS Code Copilot
+# junai — Let AI Think. Let Code Route.
 
 > 23 specialised AI agents. A 9-stage deterministic pipeline. Zero hallucinated routing.  
-> Drop into any project. Run everything from the chat window.  
-> *Because "trust the LLM to pick the right agent" worked great — right up until it didn't.*
+> *"Trust the LLM to pick the right agent"* — worked great, right up until it didn't.
+
+**junai is Un-AI routing with full AI power.**  
+Your agents stay smart. Your pipeline stays predictable.
+
+- **No hallucinated routing** — a Python state machine owns all transitions; git-blameable, auditable
+- **Deterministic gates** — key decisions require explicit approval; the pipeline cannot guess past them
+- **Predictable output** — 9 stages, 23 agents, 0 surprises
 
 ---
 
