@@ -305,7 +305,7 @@ Hotfix fast-track: `intent → implement → tester → closed`
 junai pipeline status                        # current stage, mode, blocked_by
 junai pipeline next                          # dry-run: what would advance?
 junai pipeline advance --event <stage>_complete
-junai pipeline mode --value supervised|auto  # supervised = gated, auto = autonomous
+junai pipeline mode --value supervised|assisted|autopilot  # supervised=gated, assisted=auto-route+gates, autopilot=fully autonomous
 junai pipeline gate  --name <gate_name>      # satisfy a supervision gate
 
 junai agent list                             # compliance table for all agents
