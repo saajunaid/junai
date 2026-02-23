@@ -11,8 +11,9 @@
 # Usage from any project root:
 #   junai-pull                    pull latest pool from junai --> current project
 #   junai-push                    push pool from current project --> junai + commit + push
+#   junai-revert -Sha SHA                revert a commit in agent-sandbox + cascade to junai
 #   junai-export [OutputPath]     export pool to a local folder or zip (no GitHub needed)
-#   junai-import <SourcePath>     import pool from a local folder or zip into current project
+#   junai-import SourcePath        import pool from a local folder or zip into current project
 
 $JUNO_POOL = "E:\Projects\junai"
 $JUNO_GITHUB = "$JUNO_POOL\.github"
@@ -191,6 +192,76 @@ function junai-publish-mcp {
     Write-Host ""
 }
 
+function junai-revert {
+    # Reverts a commit in agent-sandbox and cascades the revert to junai.
+    # Safe -- creates a new revert commit, never rewrites history.
+    #
+    # Usage:
+    #   junai-revert -Sha SHA                        # revert + cascade to junai
+    #   junai-revert -Sha SHA -NoCascade             # revert agent-sandbox only
+    #   junai-revert -Sha SHA -Message "msg"         # custom commit message
+    param(
+        [Parameter(Mandatory)][string]$Sha,
+        [string]$Message     = "",
+        [switch]$NoCascade
+    )
+
+    $agentSandbox = "E:\Projects\agent-sandbox"
+
+    Push-Location $agentSandbox
+
+    # Show what is being reverted
+    $target = git log --oneline -1 $Sha 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [ERROR]  Commit not found: $Sha" -ForegroundColor Red
+        Pop-Location; return
+    }
+
+    Write-Host ""
+    Write-Host "  JUNAI REVERT" -ForegroundColor Yellow
+    Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
+    Write-Host "  Reverting : $target" -ForegroundColor Yellow
+    if ($NoCascade) {
+        Write-Host "  Cascade   : agent-sandbox only (--NoCascade)" -ForegroundColor DarkGray
+    } else {
+        Write-Host "  Cascade   : agent-sandbox --> junai" -ForegroundColor DarkGray
+    }
+    Write-Host ""
+
+    $confirm = Read-Host "  Proceed? (y/N)"
+    if ($confirm -notmatch '^[Yy]$') {
+        Write-Host "  Cancelled." -ForegroundColor DarkGray
+        Pop-Location; return
+    }
+
+    # Revert in agent-sandbox
+    git revert --no-edit $Sha | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [ERROR]  git revert failed -- resolve conflicts manually." -ForegroundColor Red
+        Pop-Location; return
+    }
+
+    # Apply custom message if provided
+    if (-not [string]::IsNullOrWhiteSpace($Message)) {
+        git commit --amend -m $Message | Out-Null
+    }
+
+    git push | Out-Null
+    Write-Host "  [OK]  agent-sandbox reverted and pushed" -ForegroundColor Green
+
+    Pop-Location
+
+    # Cascade to junai unless suppressed
+    if (-not $NoCascade) {
+        $revertMsg = "revert: undo $Sha"
+        if (-not [string]::IsNullOrWhiteSpace($Message)) { $revertMsg = $Message }
+        junai-push -Message $revertMsg
+    }
+
+    Write-Host "  Done. Revert complete." -ForegroundColor Yellow
+    Write-Host ""
+}
+
 function junai-export {
     # Exports the AI resource pool to a self-contained local folder or zip.
     # Use this when the target machine has no GitHub access.
@@ -250,7 +321,7 @@ function junai-export {
     }
 
     Write-Host "  On the target machine, run:" -ForegroundColor DarkGray
-        Write-Host "    junai-import <path-to-export-folder>   # from any project root" -ForegroundColor DarkGray
+    Write-Host "    junai-import PATH-TO-EXPORT-FOLDER   # from any project root" -ForegroundColor DarkGray
     Write-Host ""
 }
 
