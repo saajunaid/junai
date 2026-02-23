@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,11 +57,13 @@ def _save_pipeline_state(state: dict[str, Any]) -> None:
     )
 
 
-def _run_pipeline_runner(
+async def _run_pipeline_runner(
     completed_stage: str,
     result_status: str,
     artefact_path: str | None,
 ) -> dict[str, Any]:
+    import asyncio
+
     runner_path = WORKSPACE_ROOT / ".github" / "tools" / "pipeline-runner" / "pipeline_runner.py"
     if not runner_path.exists():
         return {
@@ -86,23 +87,39 @@ def _run_pipeline_runner(
     if artefact_path:
         command.extend(["--artefact-path", artefact_path])
 
-    result = subprocess.run(
-        command,
-        cwd=str(WORKSPACE_ROOT),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            cwd=str(WORKSPACE_ROOT),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=30.0
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            return {
+                "blocked": True,
+                "reason": "pipeline-runner timed out after 30s — subprocess did not complete. Retry once; if it persists, check that .venv is accessible.",
+            }
+    except Exception as exc:
+        return {
+            "blocked": True,
+            "reason": f"failed to launch pipeline runner: {exc}",
+        }
 
-    if result.returncode != 0:
+    if proc.returncode != 0:
         return {
             "blocked": True,
             "reason": "pipeline-runner advance failed",
-            "stderr": result.stderr.strip(),
-            "stdout": result.stdout.strip(),
+            "stderr": stderr_bytes.decode("utf-8", errors="replace").strip(),
+            "stdout": stdout_bytes.decode("utf-8", errors="replace").strip(),
         }
 
-    stdout = result.stdout.strip()
+    stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
     if not stdout:
         return {
             "blocked": True,
@@ -187,7 +204,7 @@ async def notify_orchestrator(
 
     _save_pipeline_state(state)
 
-    routing_decision = _run_pipeline_runner(
+    routing_decision = await _run_pipeline_runner(
         completed_stage=stage_completed,
         result_status=result_status,
         artefact_path=artefact_path,
@@ -397,6 +414,8 @@ async def pipeline_init(
             "reason": "pipeline-runner not found at .github/tools/pipeline-runner/pipeline_runner.py",
         }
 
+    import asyncio
+
     command = [
         sys.executable,
         str(runner_path),
@@ -408,20 +427,39 @@ async def pipeline_init(
         "--force",
     ]
 
-    result = subprocess.run(
-        command,
-        cwd=str(WORKSPACE_ROOT),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            cwd=str(WORKSPACE_ROOT),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=30.0
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            return {
+                "success": False,
+                "reason": "pipeline init timed out after 30s — the pipeline runner subprocess did not complete. This is usually caused by AV scanning the Python executable on first launch. Retry once; if it persists, check that .venv is accessible.",
+            }
+        returncode = proc.returncode
+        stdout_text = stdout_bytes.decode("utf-8", errors="replace").strip()
+        stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
+    except Exception as exc:
+        return {
+            "success": False,
+            "reason": f"failed to launch pipeline runner: {exc}",
+        }
 
-    if result.returncode != 0:
+    if returncode != 0:
         return {
             "success": False,
             "reason": "pipeline init failed",
-            "stderr": result.stderr.strip(),
-            "stdout": result.stdout.strip(),
+            "stderr": stderr_text,
+            "stdout": stdout_text,
         }
 
     return {
