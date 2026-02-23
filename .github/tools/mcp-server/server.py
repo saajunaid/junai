@@ -95,14 +95,14 @@ async def _run_pipeline_runner(
         )
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(), timeout=30.0
+                proc.communicate(), timeout=120.0
             )
         except asyncio.TimeoutError:
             proc.kill()
             await proc.communicate()
             return {
                 "blocked": True,
-                "reason": "pipeline-runner timed out after 30s — subprocess did not complete. Retry once; if it persists, check that .venv is accessible.",
+                "reason": "pipeline-runner timed out after 120s — subprocess did not complete. Retry once; if it persists, check that .venv is accessible.",
             }
     except Exception as exc:
         return {
@@ -433,14 +433,14 @@ async def pipeline_init(
         )
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(), timeout=30.0
+                proc.communicate(), timeout=120.0
             )
         except asyncio.TimeoutError:
             proc.kill()
             await proc.communicate()
             return {
                 "success": False,
-                "reason": "pipeline init timed out after 30s — the pipeline runner subprocess did not complete. This is usually caused by AV scanning the Python executable on first launch. Retry once; if it persists, check that .venv is accessible.",
+                "reason": "pipeline init timed out after 120s — the pipeline runner subprocess did not complete. This is usually caused by AV scanning the Python executable on first launch. Retry once; if it persists, check that .venv is accessible.",
             }
         returncode = proc.returncode
         stdout_text = stdout_bytes.decode("utf-8", errors="replace").strip()
