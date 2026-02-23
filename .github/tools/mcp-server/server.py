@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -62,8 +63,6 @@ async def _run_pipeline_runner(
     result_status: str,
     artefact_path: str | None,
 ) -> dict[str, Any]:
-    import asyncio
-
     runner_path = WORKSPACE_ROOT / ".github" / "tools" / "pipeline-runner" / "pipeline_runner.py"
     if not runner_path.exists():
         return {
@@ -414,8 +413,6 @@ async def pipeline_init(
             "reason": "pipeline-runner not found at .github/tools/pipeline-runner/pipeline_runner.py",
         }
 
-    import asyncio
-
     command = [
         sys.executable,
         str(runner_path),
@@ -533,8 +530,6 @@ async def run_command(
         max_output_chars: Truncate combined output to this many characters to
                           avoid flooding the context window. Default 20000.
     """
-    import asyncio
-
     try:
         process = await asyncio.create_subprocess_shell(
             command,
