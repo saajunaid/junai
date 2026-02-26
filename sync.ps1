@@ -133,7 +133,8 @@ function junai-push {
 
 function junai-publish-mcp {
     # Bumps the version in pyproject.toml and publishes junai-mcp to PyPI.
-    # Requires: pip install build twine (once per machine), PyPI credentials configured.
+    # Uses a project-local .venv and auto-installs build/twine as needed.
+    # Requires: PyPI credentials configured.
     #
     # Usage:
     #   junai-publish-mcp           # prompts for new version
@@ -167,15 +168,35 @@ function junai-publish-mcp {
         Write-Host "  [OK]  pyproject.toml bumped $currentVer --> $Version" -ForegroundColor Green
     }
 
+    # Ensure local junai venv exists and has build tooling
+    $venvPython = Join-Path $JUNO_POOL ".venv\Scripts\python.exe"
+    if (-not (Test-Path $venvPython)) {
+        Write-Host "  Creating local .venv for junai..." -ForegroundColor DarkGray
+        Push-Location $JUNO_POOL
+        py -3 -m venv .venv 2>$null
+        if (-not (Test-Path $venvPython)) {
+            python -m venv .venv 2>$null
+        }
+        Pop-Location
+
+        if (-not (Test-Path $venvPython)) {
+            Write-Host "  [ERROR] Failed to create .venv at $JUNO_POOL" -ForegroundColor Red
+            Pop-Location; return
+        }
+    }
+
+    Write-Host "  Ensuring build tooling in junai .venv..." -ForegroundColor DarkGray
+    & $venvPython -m pip install --upgrade pip build twine | Out-Null
+
     # Clean old dist/
     $dist = Join-Path $JUNO_POOL "dist"
     if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 
     Write-Host "  Building..." -ForegroundColor DarkGray
-    python -m build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR" } | Write-Host
+    & $venvPython -m build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR" } | Write-Host
 
     Write-Host "  Uploading to PyPI..." -ForegroundColor DarkGray
-    twine upload dist\*
+    & $venvPython -m twine upload dist\*
 
     # Commit version bump
     $hasChanges = (git status --porcelain) -ne $null
