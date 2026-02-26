@@ -331,7 +331,146 @@ def _status_payload(state: PipelineState) -> dict[str, Any]:
         "blocked_by": state.blocked_by,
         "stages": state.stages,
         "last_updated": state.last_updated.isoformat() if state.last_updated else None,
+        "progress_line": _format_progress_line(state),
     }
+
+
+# ── Ordered stage sequence for progress display ──────────────────────────
+_DISPLAY_STAGES = [
+    "intent", "prd", "architect", "security", "plan",
+    "ux_research", "ui_design", "implement", "anchor",
+    "tester", "review", "closed",
+]
+
+
+def _format_progress_line(state: PipelineState) -> str:
+    """Build a visual progress line like: intent ✅ → prd ✅ → [architect] → plan → ..."""
+    parts: list[str] = []
+    for stage in _DISPLAY_STAGES:
+        stage_data = state.stages.get(stage, {})
+        status = stage_data.get("status", "not_started") if isinstance(stage_data, dict) else "not_started"
+        skipped = stage_data.get("status") == "skipped" if isinstance(stage_data, dict) else False
+
+        if stage == state.current_stage:
+            parts.append(f"[{stage}]")
+        elif status == "complete":
+            parts.append(f"{stage} ✅")
+        elif skipped:
+            parts.append(f"{stage} ⏭️")
+        elif state.blocked_by and stage == state.current_stage:
+            parts.append(f"{stage} 🛑")
+        else:
+            parts.append(stage)
+    return "📍 " + " → ".join(parts)
+
+
+# ── Stage skip logic ─────────────────────────────────────────────────────
+
+# Gates that each stage would satisfy on normal completion.
+_STAGE_GATES: dict[str, list[str]] = {
+    "intent": ["intent_approved"],
+    "architect": ["adr_approved"],
+    "plan": ["plan_approved"],
+    "review": ["review_approved"],
+}
+
+# Stages that must not be skipped (unskippable for pipeline integrity).
+_UNSKIPPABLE_STAGES = {"implement", "anchor", "tester", "closed", "BLOCKED"}
+
+
+def skip_stage(
+    state: PipelineState,
+    stage_to_skip: str,
+    reason: str,
+) -> dict[str, Any]:
+    """Skip a pipeline stage.  Validates the stage, marks it as skipped,
+    auto-satisfies its gates, and advances current_stage to the next
+    stage using the default transition path.
+
+    Returns a dict with the result (ok/error + new state info).
+    """
+    # Validate stage exists
+    if stage_to_skip not in STAGE_TO_AGENT:
+        return {"ok": False, "error": f"Unknown stage: '{stage_to_skip}'"}
+
+    # Validate it can be skipped
+    if stage_to_skip in _UNSKIPPABLE_STAGES:
+        return {"ok": False, "error": f"Stage '{stage_to_skip}' cannot be skipped"}
+
+    # Validate it's the current stage or the next expected stage
+    if stage_to_skip != state.current_stage:
+        return {
+            "ok": False,
+            "error": (
+                f"Can only skip the current stage ('{state.current_stage}'). "
+                f"'{stage_to_skip}' is not current."
+            ),
+        }
+
+    # Validate it's not already complete
+    stage_data = state.stages.get(stage_to_skip, {})
+    if isinstance(stage_data, dict) and stage_data.get("status") == "complete":
+        return {"ok": False, "error": f"Stage '{stage_to_skip}' is already complete"}
+
+    # Mark as skipped
+    skipped_data = state.stages.setdefault(stage_to_skip, {})
+    skipped_data["status"] = "skipped"
+    skipped_data["skipped_at"] = _now_utc().isoformat()
+    skipped_data["skipped_reason"] = reason
+
+    # Auto-satisfy any gates this stage would have satisfied
+    gates_satisfied: list[str] = []
+    for gate in _STAGE_GATES.get(stage_to_skip, []):
+        if gate in ALLOWED_SUPERVISION_GATES:
+            setattr(state.supervision_gates, gate, True)
+            gates_satisfied.append(gate)
+
+    # Advance to next stage using the default ordering.
+    _find_next = _find_next_stage_for_skip(state, stage_to_skip)
+    if _find_next is None:
+        return {
+            "ok": False,
+            "error": f"Cannot determine next stage after skipping '{stage_to_skip}'",
+        }
+
+    state.current_stage = _find_next
+    next_stage_data = state.stages.setdefault(_find_next, {})
+    if next_stage_data.get("status") in (None, "not_started"):
+        next_stage_data["status"] = "in_progress"
+    state.blocked_by = None
+
+    return {
+        "ok": True,
+        "skipped_stage": stage_to_skip,
+        "reason": reason,
+        "gates_auto_satisfied": gates_satisfied,
+        "new_current_stage": state.current_stage,
+        "new_target_agent": STAGE_TO_AGENT.get(state.current_stage, "Orchestrator"),
+        "progress_line": _format_progress_line(state),
+    }
+
+
+# Default stage ordering for skip resolution
+_STAGE_ORDER = [
+    "intent", "prd", "architect", "security", "plan",
+    "ux_research", "ui_design", "implement", "anchor",
+    "tester", "review", "closed",
+]
+
+
+def _find_next_stage_for_skip(state: PipelineState, skipped_stage: str) -> str | None:
+    """Determine the next stage after a skip by following the default stage order."""
+    try:
+        idx = _STAGE_ORDER.index(skipped_stage)
+    except ValueError:
+        return None
+    # Walk forward to find the next non-skipped, non-complete stage
+    for next_stage in _STAGE_ORDER[idx + 1:]:
+        stage_data = state.stages.get(next_stage, {})
+        status = stage_data.get("status") if isinstance(stage_data, dict) else None
+        if status not in ("complete", "skipped"):
+            return next_stage
+    return None
 
 
 def _parse_args() -> argparse.Namespace:
@@ -350,6 +489,11 @@ def _parse_args() -> argparse.Namespace:
     parser_advance.add_argument("--result-status", type=str, required=True)
     parser_advance.add_argument("--artefact-path", type=str, default=None)
     parser_advance.add_argument("--result-payload", type=str, default=None)
+
+    parser_skip = subparsers.add_parser("skip", help="Skip a pipeline stage")
+    parser_skip.add_argument("--state-file", type=Path, default=DEFAULT_STATE_PATH)
+    parser_skip.add_argument("--stage", type=str, required=True)
+    parser_skip.add_argument("--reason", type=str, required=True)
 
     parser_preflight = subparsers.add_parser("preflight", help="Run preflight checks")
     parser_preflight.add_argument("--state-file", type=Path, default=DEFAULT_STATE_PATH)
@@ -510,6 +654,15 @@ def main() -> None:
         _save_state(state_file, state)
         print(advance_result.model_dump_json(exclude_none=False))
         if advance_result.blocked:
+            raise SystemExit(1)
+        return
+
+    if args.command == "skip":
+        result = skip_stage(state, args.stage, args.reason)
+        if result["ok"]:
+            _save_state(state_file, state)
+        print(json.dumps(result, ensure_ascii=False))
+        if not result["ok"]:
             raise SystemExit(1)
         return
 

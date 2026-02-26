@@ -92,6 +92,7 @@ Load a skill by name from its category folder. See `project-config.md` for proje
 | Receiving Code Review | `workflow/receiving-code-review/` | Handling code review feedback |
 | Requesting Code Review | `workflow/requesting-code-review/` | Preparing code for review |
 | Verification Loop | `workflow/verification-loop/` | Systematic code verification (lint, test, type-check) |
+| Anchor Review | `anchor-review/` | Single-model adversarial review — 3-lens analysis with confidence scoring and self-challenge |
 | Pipeline State | `workflow/pipeline-state/` | Read/write `.github/pipeline-state.json` for pipeline tracking |
 | Context Curator | `workflow/context-curator/` | Compress and prioritise codebase context before feeding reasoning agents |
 
