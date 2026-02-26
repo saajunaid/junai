@@ -6,7 +6,7 @@
 
 <!-- mcp-name: io.github.saajunaid/junai-mcp -->
 
-> 23 specialised AI agents. A 9-stage deterministic pipeline. Zero hallucinated routing.  
+> 24 specialised AI agents. A 9-stage deterministic pipeline. Zero hallucinated routing.  
 > *"Trust the LLM to pick the right agent"* — worked great, right up until it didn't.
 
 **junai is Un-AI routing with full AI power.**  
@@ -22,7 +22,7 @@ Your agents stay smart. Your pipeline stays predictable.
 
 junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
 
-- **23 specialised agents** — Architect, Implement, Tester, Code Reviewer, Debug, Security Analyst, and more
+- **24 specialised agents** — Architect, Implement, Tester, Code Reviewer, Debug, Security Analyst, Anchor, and more
 - **A deterministic pipeline** — a Python state machine owns all routing logic; the LLM cannot hallucinate the wrong next step
 - **Three pipeline modes** — supervised (you approve everything), assisted (agents route, you approve gates), and autopilot ⚠️ *(beta — agents route, smart gates, only intent requires approval)*
 - **70+ reusable skills, 30 prompts, 23 instruction files** — loaded dynamically by agents as needed
@@ -140,8 +140,8 @@ Available via natural language in Copilot Chat — or directly in the tools pane
 | `pipeline_reset` | Reset for next feature (confirm=true required) |
 | `set_pipeline_mode` | Switch between supervised / assisted / autopilot |
 | `satisfy_gate` | Approve a supervision gate |
-| `get_pipeline_status` | Current stage, mode, blocked_by, next transition, progress line |
-| `skip_stage` | Skip current stage (when allowed) with reason and deterministic next-stage advance |
+| `skip_stage` | Skip the current stage with auto-gate satisfaction (blocked on `implement`, `anchor`, `tester`) |
+| `get_pipeline_status` | Current stage, mode, blocked_by, next transition, and formatted `progress_line` |
 | `notify_orchestrator` | Record stage completion + compute next transition |
 | `validate_deferred_paths` | Verify deferred item file paths before pipeline close |
 | `run_command` | Execute any shell command (tests, lint, format) — enables hands-free test runs |
@@ -152,15 +152,15 @@ Available via natural language in Copilot Chat — or directly in the tools pane
 
 ```powershell
 junai-pull               # pull latest agents/skills/prompts → your project
-junai-push               # push improvements from your project → junai pool (auto-publishes when keys exist)
-junai-push -NoPublish    # push only; skip release publishing
-junai-release            # publish MCP + extension from local key files
+junai-push               # push improvements from your project → junai pool (+ auto-publishes if keys exist)
+junai-release            # publish MCP to PyPI + extension to VS Code marketplace
 junai-export             # bundle to folder or .zip (offline/air-gapped)
 junai-import <path>      # restore from export bundle
 ```
 
+> Store `pypimcp.key` (PyPI token) in the junai repo root and `vscode.pat` (Azure DevOps PAT) in the junai-vscode repo root to enable `junai-push` auto-publish. Both files are gitignored.
+
 > `project-config.md`, `copilot-instructions.md`, `pipeline-state.json`, and `agent-docs/` are **never synced** — project-specific.
-> Security note: `*.key` and `*.pat` are ignored by Git, and extension packaging excludes them from VSIX artifacts.
 
 ---
 
@@ -171,7 +171,6 @@ python .github/tools/pipeline-runner/pipeline_runner.py status
 python .github/tools/pipeline-runner/pipeline_runner.py init --project <name> --feature <slug> --type feature|hotfix --force
 python .github/tools/pipeline-runner/pipeline_runner.py mode --value supervised|assisted|autopilot
 python .github/tools/pipeline-runner/pipeline_runner.py gate --name <gate_name>
-python .github/tools/pipeline-runner/pipeline_runner.py skip --stage <stage_name> --reason "<why skip>"
 python .github/tools/pipeline-runner/pipeline_runner.py next
 python .github/tools/pipeline-runner/pipeline_runner.py transitions
 ```
@@ -230,6 +229,9 @@ Use this for specialist work that doesn't belong in the main pipeline sequence �
 ---
 
 ## Distribution
+
+Three ways to get junai — pick the one that fits your workflow:
+
 ### Option 1 — VS Code Extension (zero setup) ⚡
 
 Install [junai — Agent Pipeline](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) from the VS Code Marketplace, then run **`junai: Initialize Agent Pipeline`** from the command palette.
@@ -238,6 +240,8 @@ That's it. The extension:
 - Deploys all 587 pool files (`.github/agents/`, `.github/skills/`, `.github/tools/`, etc.) into your workspace
 - Scaffolds `pipeline-state.json`
 - Automatically writes `.vscode/mcp.json` with the `uvx junai-mcp` entry
+
+VS Code will prompt to start the MCP server — accept it, and the 8 pipeline tools appear in the Copilot Chat tools panel (⚙) immediately. **No terminal, no venv, no manual config required.** Requires [uv](https://docs.astral.sh/uv/) on your PATH (`winget install astral-sh.uv` / `brew install uv` / `pip install uv`).
 
 ### Option 2 — Manual MCP config (if you already have pool files)
 
@@ -283,6 +287,9 @@ junai is a living project. Things on the near-term roadmap:
 
 - ~~**VS Code Extension**~~ ✅ **Shipped** — [`junai-labs.junai`](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) on the VS Code Marketplace. One-click pool install, no `sync.ps1` needed.
 - ~~**MCP Server registry listing**~~ ✅ **Shipped** — [`junai-mcp 0.2.0`](https://pypi.org/project/junai-mcp/) on PyPI; registered as `io.github.saajunaid/junai-mcp` on `registry.modelcontextprotocol.io`.
+- ~~**skip_stage MCP tool**~~ ✅ **Shipped** — skip any non-critical stage with auto-gate satisfaction and safety guards.
+- ~~**Anchor agent + adversarial review skill**~~ ✅ **Shipped** — 3-lens adversarial review (correctness, security, performance) with confidence scoring.
+- ~~**Cross-artifact drift protection**~~ ✅ **Shipped** — scope change declarations in Plan/Architect, handoff reconciliation in Implement/Anchor.
 - **IDE agnostic** — `.github/` is universal; Cursor, JetBrains, and CLI support planned
 - **And more** — autopilot mode hardening, a proper user guide, and potentially a self-contained binary for the pipeline runner
 
@@ -321,7 +328,7 @@ If you find it useful, give it a star. If you find a bug, open an issue. If you 
 ├── instructions/    23 instruction files (python, fastapi, streamlit, security, etc.)
 ├── diagrams/        Agent workflow reference cards and design docs
 ├── tools/
-│   ├── mcp-server/      9 MCP tools (`skip_stage`, `run_command`, progress-aware status, etc.)
+│   ├── mcp-server/      8 MCP tools (pipeline_init, pipeline_reset, status, etc.)
 │   └── pipeline-runner/ Python state machine — the deterministic routing engine
 └── project-config.md  ← The only file you edit per project
 ```
@@ -344,7 +351,8 @@ Agents read `project-config.md` for brand/stack config and `copilot-instructions
 |-------|--------|-------|
 | Deep Reasoning | Architect, Security Analyst, Plan, Debug | Claude Opus 4.6 |
 | Structured Thinking | PRD, Code Reviewer, Data Engineer, Tester, SQL Expert, UI/UX Designer, UX Designer, Prompt Engineer, Accessibility, Mentor, Mermaid, SVG | Claude Sonnet 4.6 |
-| Execution | Implement, Streamlit Developer, Frontend Developer, DevOps, Janitor | GPT-5.3-Codex |
+| Orchestration | Orchestrator, Anchor | Claude Sonnet 4.6 |
+| Execution | Implement, Streamlit Developer, Frontend Developer, DevOps, Janitor | Claude Sonnet 4.6 |
 
 ---
 
@@ -390,7 +398,8 @@ All sync operations are handled by `sync.ps1`. Dot-source it once in your `$PROF
 | Command | What it does |
 |---|---|
 | `junai-pull` | Pool → project: copies agents, skills, prompts, instructions, diagrams into `.github/` |
-| `junai-push` | Project → pool: commits improvements from a project back into this repo |
+| `junai-push` | Project → pool: commits improvements from a project back into this repo; auto-publishes MCP + extension when key files are present |
+| `junai-release` | Publish `junai-mcp` to PyPI and the VS Code extension to the marketplace in one command |
 | `junai-export` | Creates a self-contained folder or `.zip` for offline/air-gapped machines |
 | `junai-import` | Restores a pool from an export folder or zip on a machine without GitHub access |
 
