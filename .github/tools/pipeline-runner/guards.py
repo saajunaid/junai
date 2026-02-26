@@ -355,6 +355,29 @@ def blocked_cleared(
     return True, None
 
 
+def strict_verification_enabled(
+    state: PipelineState,
+    _event: CompletionEvent,
+    _workspace_root: Path,
+) -> tuple[bool, str | None]:
+    """Check if strict verification mode is enabled.
+
+    Triggers when: pipeline-state has strict_verification: true,
+    or type is 'hotfix', or task_size is 'L'.
+    """
+    # Explicit flag
+    extra = state.model_extra or {}
+    if extra.get("strict_verification"):
+        return True, None
+    # Hotfixes always get strict verification
+    if (state.type or "").strip().lower() == "hotfix":
+        return True, None
+    # Large tasks get strict verification
+    if extra.get("task_size", "").upper() == "L":
+        return True, None
+    return False, "strict_verification is not enabled"
+
+
 GUARD_REGISTRY: dict[str, GuardFunction] = {
     "artefact_exists": artefact_exists,
     "artefact_approved": artefact_approved,
@@ -379,6 +402,7 @@ GUARD_REGISTRY: dict[str, GuardFunction] = {
     "pipeline_mode_assisted": pipeline_mode_assisted,
     "pipeline_mode_autopilot": pipeline_mode_autopilot,
     "blocked_cleared": blocked_cleared,
+    "strict_verification_enabled": strict_verification_enabled,
 }
 
 

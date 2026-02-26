@@ -176,6 +176,20 @@ def _attempt_path_correction(file_value: str) -> Path | None:
 mcp = FastMCP("junai-mcp")
 
 
+def _get_progress_line(state: dict[str, Any]) -> str | None:
+    """Generate a visual progress line from raw state dict.
+    Uses pipeline-runner in-process if available, otherwise builds a simple one."""
+    if _RUNNER_AVAILABLE:
+        try:
+            pstate = _pr._load_state(PIPELINE_STATE_PATH)
+            return _pr._format_progress_line(pstate)
+        except Exception:
+            pass
+    # Simple fallback
+    current = state.get("current_stage", "?")
+    return f"📍 Current stage: {current}"
+
+
 @mcp.tool()
 async def notify_orchestrator(
     stage_completed: str,
@@ -311,8 +325,60 @@ async def get_pipeline_status() -> dict[str, Any]:
         "stages_summary": stages_summary,
         "blocked_by": state.get("blocked_by"),
         "next_transition": notes.get("_routing_decision"),
+        "progress_line": _get_progress_line(state),
         "state_file": str(PIPELINE_STATE_PATH),
     }
+
+
+@mcp.tool()
+async def skip_stage(stage_to_skip: str, reason: str) -> dict[str, Any]:
+    """Skip the current pipeline stage and advance to the next one.
+
+    Use when a stage is not needed for this task (e.g. skipping security
+    review for a docs-only change, or skipping prd for a small bug fix).
+    Only the current stage can be skipped. Gates that the skipped stage
+    would have satisfied are auto-approved.
+
+    Returns the result including new current_stage and progress_line.
+    """
+    if not _RUNNER_AVAILABLE:
+        # Subprocess fallback
+        runner_path = WORKSPACE_ROOT / ".github" / "tools" / "pipeline-runner" / "pipeline_runner.py"
+        if not runner_path.exists():
+            return {"ok": False, "error": "pipeline-runner not found"}
+        command = [
+            sys.executable, str(runner_path), "skip",
+            "--state-file", str(PIPELINE_STATE_PATH),
+            "--stage", stage_to_skip,
+            "--reason", reason,
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=str(WORKSPACE_ROOT),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=30.0
+            )
+        except (asyncio.TimeoutError, Exception) as exc:
+            return {"ok": False, "error": f"subprocess error: {exc}"}
+        stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
+        try:
+            return json.loads(stdout)
+        except json.JSONDecodeError:
+            return {"ok": False, "error": stdout or stderr_bytes.decode()}
+
+    # In-process path (preferred)
+    try:
+        pstate = _pr._load_state(PIPELINE_STATE_PATH)
+        result = _pr.skip_stage(pstate, stage_to_skip, reason)
+        if result.get("ok"):
+            _pr._save_state(PIPELINE_STATE_PATH, pstate)
+        return result
+    except Exception as exc:
+        return {"ok": False, "error": f"skip_stage error: {exc}"}
 
 
 @mcp.tool()
