@@ -10,7 +10,8 @@
 #
 # Usage from any project root:
 #   junai-pull                    pull latest pool from junai --> current project
-#   junai-push                    push pool from current project --> junai + commit + push
+#   junai-push                    push pool from current project --> junai + commit + push (+ auto-publish when keys exist)
+#   junai-push -NoPublish         push only (skip publish)
 #   junai-revert [-Last N] [-Sha SHA[,SHA...]]  revert commits + cascade to all repos
 #   junai-export [OutputPath]     export pool to a local folder or zip (no GitHub needed)
 #   junai-import SourcePath        import pool from a local folder or zip into current project
@@ -66,6 +67,7 @@ function junai-push {
         [string]$ProjectRoot = (Get-Location).Path,
         [string]$Message = "",
         [switch]$Publish,
+        [switch]$NoPublish,
         [string]$McpVersion = ""
     )
 
@@ -135,9 +137,30 @@ function junai-push {
     Write-Host "  Committed and pushed to junai." -ForegroundColor Magenta
     Write-Host ""
 
-    if ($Publish) {
-        junai-release -McpVersion $McpVersion
+    $hasPypiKey = Test-Path $PYPI_KEY_FILE
+    $hasVscePat = Test-Path $VSCE_PAT_FILE
+    $hasAnyKey = $hasPypiKey -or $hasVscePat
+    $shouldPublish = $Publish -or (-not $NoPublish -and $hasAnyKey)
+
+    if ($NoPublish) {
+        Write-Host "  [--]  Publish skipped (-NoPublish)." -ForegroundColor DarkGray
+        return
     }
+
+    if (-not $shouldPublish) {
+        Write-Host "  [--]  No publish keys found. Skipping release." -ForegroundColor DarkGray
+        Write-Host "       Add $PYPI_KEY_FILE and/or $VSCE_PAT_FILE to enable auto-publish." -ForegroundColor DarkGray
+        return
+    }
+
+    if (-not $hasPypiKey) {
+        Write-Host "  [--]  PyPI key missing; MCP publish skipped." -ForegroundColor DarkGray
+    }
+    if (-not $hasVscePat) {
+        Write-Host "  [--]  VS Code PAT missing; extension publish skipped." -ForegroundColor DarkGray
+    }
+
+    junai-release -McpVersion $McpVersion -SkipMcp:(-not $hasPypiKey) -SkipExtension:(-not $hasVscePat)
 }
 
 function junai-release {
