@@ -18,6 +18,9 @@
 $JUNO_POOL = "E:\Projects\junai"
 $JUNO_GITHUB = "$JUNO_POOL\.github"
 $POOL_FOLDERS = @("agents", "skills", "prompts", "instructions", "diagrams", "tools")
+$JUNAI_VSCODE = "E:\Projects\junai-vscode"
+$PYPI_KEY_FILE = Join-Path $JUNO_POOL "pypimcp.key"
+$VSCE_PAT_FILE = Join-Path $JUNAI_VSCODE "vscode.pat"
 
 function junai-pull {
     param([string]$ProjectRoot = (Get-Location).Path)
@@ -61,7 +64,9 @@ function junai-pull {
 function junai-push {
     param(
         [string]$ProjectRoot = (Get-Location).Path,
-        [string]$Message = ""
+        [string]$Message = "",
+        [switch]$Publish,
+        [string]$McpVersion = ""
     )
 
     $source = Join-Path $ProjectRoot ".github"
@@ -128,6 +133,86 @@ function junai-push {
 
     Write-Host ""
     Write-Host "  Committed and pushed to junai." -ForegroundColor Magenta
+    Write-Host ""
+
+    if ($Publish) {
+        junai-release -McpVersion $McpVersion
+    }
+}
+
+function junai-release {
+    # Publishes MCP package and VS Code extension using local secret files.
+    # Secret files:
+    #   E:\Projects\junai\pypimcp.key
+    #   E:\Projects\junai-vscode\vscode.pat
+    param(
+        [string]$McpVersion = "",
+        [switch]$SkipMcp,
+        [switch]$SkipExtension
+    )
+
+    Write-Host ""
+    Write-Host "  JUNAI RELEASE  MCP + VS Code" -ForegroundColor Cyan
+    Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
+
+    if (-not $SkipMcp) {
+        if (-not (Test-Path $PYPI_KEY_FILE)) {
+            Write-Host "  [ERROR] Missing PyPI key file: $PYPI_KEY_FILE" -ForegroundColor Red
+            return
+        }
+
+        $pypiToken = (Get-Content $PYPI_KEY_FILE -Raw).Trim()
+        if ([string]::IsNullOrWhiteSpace($pypiToken)) {
+            Write-Host "  [ERROR] PyPI key file is empty: $PYPI_KEY_FILE" -ForegroundColor Red
+            return
+        }
+
+        $prevTwineUser = $env:TWINE_USERNAME
+        $prevTwinePass = $env:TWINE_PASSWORD
+        try {
+            $env:TWINE_USERNAME = "__token__"
+            $env:TWINE_PASSWORD = $pypiToken
+            junai-publish-mcp -Version $McpVersion
+        } finally {
+            $env:TWINE_USERNAME = $prevTwineUser
+            $env:TWINE_PASSWORD = $prevTwinePass
+        }
+    }
+
+    if (-not $SkipExtension) {
+        if (-not (Test-Path $VSCE_PAT_FILE)) {
+            Write-Host "  [ERROR] Missing VS Code PAT file: $VSCE_PAT_FILE" -ForegroundColor Red
+            return
+        }
+
+        $vscePat = (Get-Content $VSCE_PAT_FILE -Raw).Trim()
+        if ([string]::IsNullOrWhiteSpace($vscePat)) {
+            Write-Host "  [ERROR] VS Code PAT file is empty: $VSCE_PAT_FILE" -ForegroundColor Red
+            return
+        }
+
+        if (-not (Test-Path (Join-Path $JUNAI_VSCODE "package.json"))) {
+            Write-Host "  [ERROR] junai-vscode repo not found at $JUNAI_VSCODE" -ForegroundColor Red
+            return
+        }
+
+        $prevVscePat = $env:VSCE_PAT
+        try {
+            $env:VSCE_PAT = $vscePat
+            Push-Location $JUNAI_VSCODE
+            Write-Host "  Publishing VS Code extension..." -ForegroundColor DarkGray
+            npm run publish
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  [ERROR] VS Code extension publish failed." -ForegroundColor Red
+                return
+            }
+        } finally {
+            Pop-Location
+            $env:VSCE_PAT = $prevVscePat
+        }
+    }
+
+    Write-Host "  [OK]  Release flow completed." -ForegroundColor Green
     Write-Host ""
 }
 

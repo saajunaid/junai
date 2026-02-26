@@ -24,3 +24,7 @@ src/*.egg-info/
 # MCP publisher
 mcp-publisher.exe
 .mcpregistry_*
+
+# Local secret files (never commit)
+pypimcp.key
+*.key
