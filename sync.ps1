@@ -178,6 +178,20 @@ function junai-release {
     Write-Host "  JUNAI RELEASE  MCP + VS Code" -ForegroundColor Cyan
     Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
 
+    # ── Pre-publish agent validation gate ─────────────────────────────────
+    $validatorScript = "E:\Projects\agent-sandbox\validate_agents.py"
+    $pythonExe       = "E:\Projects\agent-sandbox\.venv\Scripts\python.exe"
+    if ((Test-Path $validatorScript) -and (Test-Path $pythonExe)) {
+        & $pythonExe $validatorScript
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  [ABORT]  Agent validation failed. Fix errors above before publishing." -ForegroundColor Red
+            return
+        }
+    } else {
+        Write-Host "  [WARN]  validate_agents.py or venv not found — skipping validation" -ForegroundColor Yellow
+    }
+    # ──────────────────────────────────────────────────────────────────────
+
     if (-not $SkipMcp) {
         if (-not (Test-Path $PYPI_KEY_FILE)) {
             Write-Host "  [ERROR] Missing PyPI key file: $PYPI_KEY_FILE" -ForegroundColor Red
