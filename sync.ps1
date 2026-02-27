@@ -266,8 +266,9 @@ function junai-publish-mcp {
     Write-Host "  Current version: $currentVer" -ForegroundColor DarkGray
 
     if ([string]::IsNullOrWhiteSpace($Version)) {
-        $Version = Read-Host "  New version (blank to keep $currentVer)"
-        if ([string]::IsNullOrWhiteSpace($Version)) { $Version = $currentVer }
+        # No version passed — keep current version silently (no interactive prompt).
+        # Pass -Version explicitly to bump (e.g. junai-release -McpVersion "0.2.1").
+        $Version = $currentVer
     }
 
     if ($Version -ne $currentVer) {
