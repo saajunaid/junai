@@ -160,6 +160,21 @@ When context window is limited, read in this order:
 
 When your work is complete:
 
+**Context Health Check (multi-phase tasks only):**
+If subsequent phases remain in the current stage, evaluate your context capacity before continuing and include this line in your completion report:
+
+```
+Context health: [Green | Yellow | Red] — [brief assessment]
+```
+
+| Status | Meaning | Action |
+|--------|---------|--------|
+| 🟢 **Green** | Ample room remaining | Proceed normally |
+| 🟡 **Yellow** | Tight but feasible | Proceed efficiently — skip verbose explanations, defer non-critical file reads, summarize rather than quote |
+| 🔴 **Red** | Critically low | HARD STOP — report: *"Context critically low — cannot safely begin Phase N. Recommend starting Phase N in a new session."* Do NOT attempt the next phase. |
+
+> **Rule:** Never silently attempt a phase you don't have room to complete. A truncated phase is harder to recover from than a clean stop.
+
 **Assisted/autopilot mode:** If `pipeline_mode` is `assisted` or `autopilot`: call `notify_orchestrator` MCP tool as final step instead of presenting the Return to Orchestrator button.
 
 1. **Update `pipeline-state.json`** — set your stage `status: complete`, `completed_at: <ISO-date>`, `artefact: <paths>`.
@@ -173,6 +188,33 @@ When your work is complete:
    ```
 
 3. **HARD STOP** — Do NOT offer to proceed to the next task. The Orchestrator owns all routing decisions. Present only the `Return to Orchestrator` handoff button.
+
+#### Partial Completion Protocol (Token Pressure / Scope Overflow)
+
+If you are running low on context window or realize mid-implementation that the task is larger than one session can complete, **do NOT declare the task complete**. Instead:
+
+1. **Stop implementing.** Commit whatever is stable and passing tests.
+2. **Report partial completion honestly:**
+
+```markdown
+**[Stage/Phase N] PARTIAL — session capacity reached.**
+
+### Completed
+- [ ] Item A — done, grep-verified
+- [ ] Item B — done, grep-verified
+
+### NOT Completed (requires follow-up session)
+- [ ] Item C — not started
+- [ ] Item D — not started
+
+### Recommendation
+Next session should focus on: [specific items with plan section references]
+```
+
+3. Do NOT update `pipeline-state.json` to `status: complete`.
+4. Present the `Return to Orchestrator` button with the partial status.
+
+> **Rule:** Reporting "partially done, here's what remains" is always preferable to reporting "done" when deliverables are missing. The cost of a false completion report far exceeds the cost of an honest partial report.
 
 ---
 
