@@ -188,7 +188,7 @@ This writes `.github/pipeline-state.json` with `pipeline_mode: supervised` and `
 Before your first pipeline run, fill in two files:
 
 - `.github/project-config.md` — project name, tech stack, conventions agents should follow
-- `copilot-instructions.md` — workspace-level Copilot instructions (loaded by all agents automatically)
+- `.github/copilot-instructions.md` — workspace-level Copilot instructions (loaded by all agents automatically). The junai extension manages only a small `<!-- junai:start -->` … `<!-- junai:end -->` section; your content outside those markers is never touched.
 
 ### Open the Orchestrator
 
@@ -499,7 +499,7 @@ Two files provide workspace-level context that agents load at the start of every
 Describes the project: name, tech stack, repo structure, coding conventions, and any project-specific agent behaviour overrides. Edit this before your first pipeline run.
 
 **`copilot-instructions.md`** (workspace root)
-Standard VS Code Copilot instructions file. All agents inherit these automatically. Use it for global preferences: language, style, output format.
+Standard VS Code Copilot instructions file. All agents inherit these automatically. Use it for global preferences: language, style, output format. The junai extension manages only a sentinel-delimited `<!-- junai:start -->` … `<!-- junai:end -->` block pointing to the pool-managed system docs — your content outside those markers is never read, modified, or deleted by the extension.
 
 ---
 

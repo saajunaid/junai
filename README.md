@@ -53,7 +53,7 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
    ```
 4. Reload VS Code — the 8 junai MCP tools appear in the Copilot Chat tools icon (⚙)
 5. Edit `.github/project-config.md` — set your project name and stack
-6. Create `.github/copilot-instructions.md` — add your architecture overview, DB names, key file paths
+6. Edit `.github/copilot-instructions.md` — the extension creates this with a managed section; add your architecture overview, DB names, and key file paths outside the `<!-- junai:start -->` markers
 7. Open Copilot Chat → **select Orchestrator from the agent dropdown** → describe what you want to build
 
 > **VS Code note:** Custom agents aren't invoked via `@AgentName` mentions in chat. Click the agent icon in Copilot Chat and select **Orchestrator** from the list to activate it.
@@ -76,7 +76,7 @@ junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
    ```
    Deploys `.github/` (agents, skills, prompts, instructions, diagrams, **tools**) into your project.
 4. Create venv (same as Path A step 3), reload VS Code
-5. Configure `project-config.md` and `copilot-instructions.md`, then open Copilot Chat → **select Orchestrator from the agent dropdown**
+5. Configure `project-config.md` and add your project context to `copilot-instructions.md` (outside the `<!-- junai:start -->` managed section), then open Copilot Chat → **select Orchestrator from the agent dropdown**
 
 ---
 
@@ -160,7 +160,7 @@ junai-import <path>      # restore from export bundle
 
 > Store `pypimcp.key` (PyPI token) in the junai repo root and `vscode.pat` (Azure DevOps PAT) in the junai-vscode repo root to enable `junai-push` auto-publish. Both files are gitignored.
 
-> `project-config.md`, `copilot-instructions.md`, `pipeline-state.json`, and `agent-docs/` are **never synced** — project-specific.
+> `project-config.md`, `copilot-instructions.md`, `pipeline-state.json`, and `agent-docs/` are **never synced** — project-specific. The extension manages only a sentinel-delimited section in `copilot-instructions.md`; your content is never touched.
 
 ---
 
@@ -341,7 +341,7 @@ MIT — free to use, fork, and adapt. See [LICENSE](LICENSE) for the full text.
 
 If you build something cool on top of junai, attribution is appreciated but not required. A shoutout would make our day though.
 
-Agents read `project-config.md` for brand/stack config and `copilot-instructions.md` for project architecture context.
+Agents read `project-config.md` for brand/stack config and `copilot-instructions.md` for project architecture context. The extension manages a small sentinel block in `copilot-instructions.md` — your content outside the `<!-- junai:start -->` / `<!-- junai:end -->` markers is never modified.
 
 ---
 
@@ -403,7 +403,7 @@ All sync operations are handled by `sync.ps1`. Dot-source it once in your `$PROF
 | `junai-export` | Creates a self-contained folder or `.zip` for offline/air-gapped machines |
 | `junai-import` | Restores a pool from an export folder or zip on a machine without GitHub access |
 
-> `project-config.md` and `copilot-instructions.md` are intentionally **never** synced — they are project-specific.
+> `project-config.md` and `copilot-instructions.md` are intentionally **never** synced — they are project-specific. The extension manages only a `<!-- junai:start -->` … `<!-- junai:end -->` section in `copilot-instructions.md`.
 
 ---
 
@@ -411,7 +411,7 @@ All sync operations are handled by `sync.ps1`. Dot-source it once in your `$PROF
 
 | File/Folder | Why It Stays |
 |-------------|-------------|
-| `.github/copilot-instructions.md` | Project architecture, DB names, stack details |
+| `.github/copilot-instructions.md` | Project architecture, DB names, stack details (extension manages only sentinel section) |
 | `.github/project-config.md` | Your filled-in profile and project values |
 | `.github/plans/` | Phased execution plans for active features |
 | `.github/handoffs/` | Emergency context handoffs |
