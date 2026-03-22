@@ -207,11 +207,18 @@ async def notify_orchestrator(
     state = _load_pipeline_state()
     current_stage = state.get("current_stage")
     if current_stage and current_stage != stage_completed:
+        hint = (
+            " — call replay_stage(stage_name, reason) to roll back the blocked"
+            " stage and retry with a valid artefact_path"
+            if current_stage == "BLOCKED"
+            else ""
+        )
         return {
             "blocked": True,
             "reason": (
                 "stage mismatch: "
                 f"state current_stage={current_stage}, stage_completed={stage_completed}"
+                f"{hint}"
             ),
         }
 
@@ -335,6 +342,20 @@ async def validate_deferred_paths(
 @mcp.tool()
 async def get_pipeline_status() -> dict[str, Any]:
     """Return current pipeline status and best-effort next transition summary."""
+    if not PIPELINE_STATE_PATH.exists():
+        return {
+            "project": None,
+            "feature": None,
+            "current_stage": None,
+            "pipeline_mode": "supervised",
+            "state_health": "file_missing",
+            "stages_summary": {},
+            "blocked_by": None,
+            "next_transition": None,
+            "progress_line": "📍 No pipeline state file found",
+            "state_file": str(PIPELINE_STATE_PATH),
+        }
+
     state = _load_pipeline_state()
     notes = state.get("_notes") or {}
 
@@ -352,6 +373,7 @@ async def get_pipeline_status() -> dict[str, Any]:
         "feature": state.get("feature"),
         "current_stage": state.get("current_stage"),
         "pipeline_mode": state.get("pipeline_mode", "supervised"),
+        "state_health": _classify_state_health(state),
         "stages_summary": stages_summary,
         "blocked_by": state.get("blocked_by"),
         "next_transition": notes.get("_routing_decision"),
@@ -488,6 +510,32 @@ async def update_notes(
 _STAGE_ORDER = [
     "intent", "prd", "architect", "plan", "implement", "tester", "review", "closed",
 ]
+_KNOWN_ACTIVE_STAGES = set(_STAGE_ORDER)
+
+
+def _classify_state_health(state: dict[str, Any]) -> str:
+    """Classify pipeline state health — mirrors orchestrator State Health Classification."""
+    current = state.get("current_stage")
+    project = state.get("project")
+    feature = state.get("feature")
+    stages = state.get("stages")
+
+    # uninitialized: missing/empty/placeholder fields or empty stages
+    if (
+        not current
+        or not project or (isinstance(project, str) and project.startswith("<"))
+        or not feature or (isinstance(feature, str) and feature.startswith("<"))
+        or stages == {} or stages is None
+    ):
+        return "uninitialized"
+
+    if current == "closed":
+        return "closed"
+
+    if current in _KNOWN_ACTIVE_STAGES and stages:
+        return "active"
+
+    return "corrupted"
 
 
 @mcp.tool()
@@ -552,8 +600,10 @@ async def replay_stage(
     retry_count = stage_record.get("retry_count", 0)
     stage_record["retry_count"] = retry_count + 1
 
-    # Update current_stage to the replayed stage
+    # Update current_stage to the replayed stage and clear any lingering
+    # blocked_by so get_pipeline_status does not report a stale block reason.
     state["current_stage"] = stage_name
+    state["blocked_by"] = None
     state["last_updated"] = _to_iso_utc()
 
     # ── Restore input snapshot if available ────────────────────────────────
