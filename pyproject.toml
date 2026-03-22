@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "junai-mcp"
-version = "0.2.2"
+version = "0.2.3"
 description = "Agentic pipeline orchestration MCP server — manage pipeline state, modes, and supervision gates for AI-driven software development workflows."
 readme = "README.md"
 license = "MIT"
