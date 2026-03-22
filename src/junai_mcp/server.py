@@ -1,8 +1,13 @@
+# /// script
+# dependencies = ["fastmcp"]
+# ///
 from __future__ import annotations
 
 import asyncio
 import json
 import os
+import signal as _signal
+import subprocess as _subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -118,6 +123,7 @@ async def _run_pipeline_runner(
         proc = await asyncio.create_subprocess_exec(
             *command,
             cwd=str(WORKSPACE_ROOT),
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -201,11 +207,18 @@ async def notify_orchestrator(
     state = _load_pipeline_state()
     current_stage = state.get("current_stage")
     if current_stage and current_stage != stage_completed:
+        hint = (
+            " — call replay_stage(stage_name, reason) to roll back the blocked"
+            " stage and retry with a valid artefact_path"
+            if current_stage == "BLOCKED"
+            else ""
+        )
         return {
             "blocked": True,
             "reason": (
                 "stage mismatch: "
                 f"state current_stage={current_stage}, stage_completed={stage_completed}"
+                f"{hint}"
             ),
         }
 
@@ -236,6 +249,30 @@ async def notify_orchestrator(
     refreshed_state = _load_pipeline_state()
     refreshed_notes = refreshed_state.setdefault("_notes", {})
     refreshed_notes["_routing_decision"] = routing_decision
+
+    # ── Append to _routing_history (50-cap with rotation) ─────────────────
+    history = refreshed_notes.setdefault("_routing_history", [])
+    history.append({
+        "timestamp": _to_iso_utc(),
+        "from": stage_completed,
+        "to": routing_decision.get("to_stage") or routing_decision.get("next_stage"),
+        "result_status": result_status,
+        "blocked": routing_decision.get("blocked", False),
+    })
+    if len(history) > 50:
+        refreshed_notes["_routing_history"] = history[-40:]  # Drop oldest 10+
+
+    # ── Append pre-transition snapshot to _stage_history (50-cap) ─────────
+    stage_history = refreshed_notes.setdefault("_stage_history", [])
+    stage_history.append({
+        "timestamp": _to_iso_utc(),
+        "stage": stage_completed,
+        "result_status": result_status,
+        "artefact_path": artefact_path,
+    })
+    if len(stage_history) > 50:
+        refreshed_notes["_stage_history"] = stage_history[-40:]
+
     _save_pipeline_state(refreshed_state)
 
     return routing_decision
@@ -305,6 +342,20 @@ async def validate_deferred_paths(
 @mcp.tool()
 async def get_pipeline_status() -> dict[str, Any]:
     """Return current pipeline status and best-effort next transition summary."""
+    if not PIPELINE_STATE_PATH.exists():
+        return {
+            "project": None,
+            "feature": None,
+            "current_stage": None,
+            "pipeline_mode": "supervised",
+            "state_health": "file_missing",
+            "stages_summary": {},
+            "blocked_by": None,
+            "next_transition": None,
+            "progress_line": "📍 No pipeline state file found",
+            "state_file": str(PIPELINE_STATE_PATH),
+        }
+
     state = _load_pipeline_state()
     notes = state.get("_notes") or {}
 
@@ -322,6 +373,7 @@ async def get_pipeline_status() -> dict[str, Any]:
         "feature": state.get("feature"),
         "current_stage": state.get("current_stage"),
         "pipeline_mode": state.get("pipeline_mode", "supervised"),
+        "state_health": _classify_state_health(state),
         "stages_summary": stages_summary,
         "blocked_by": state.get("blocked_by"),
         "next_transition": notes.get("_routing_decision"),
@@ -356,6 +408,7 @@ async def skip_stage(stage_to_skip: str, reason: str) -> dict[str, Any]:
             proc = await asyncio.create_subprocess_exec(
                 *command,
                 cwd=str(WORKSPACE_ROOT),
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -418,6 +471,182 @@ async def satisfy_gate(gate_name: str) -> dict[str, Any]:
         "success": True,
         "supervision_gate": gate,
         "satisfied": True,
+    }
+
+
+@mcp.tool()
+async def update_notes(
+    updates: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge key-value pairs into _notes in pipeline-state.json.
+
+    This is the ONLY correct way to write _notes.* fields. Do not use editFiles
+    for _notes — all pipeline-state writes must go through MCP tools to maintain
+    a single authoritative writer and prevent concurrent-write conflicts.
+
+    Performs a shallow merge at the top level of _notes: each key in ``updates``
+    replaces the corresponding key in _notes (or creates it if absent).
+    Keys not present in ``updates`` are left unchanged.
+
+    Args:
+        updates: Dictionary of key-value pairs to merge into _notes.
+                 Example: {"handoff_payload": {"required_skills": ["pega-read"],
+                           "upstream_artefact": ".github/plans/feature.md"}}
+    """
+    if not updates:
+        return {"success": False, "reason": "updates dict is empty — nothing to write."}
+
+    state = _load_pipeline_state()
+    notes = state.setdefault("_notes", {})
+    notes.update(updates)
+    _save_pipeline_state(state)
+    return {
+        "success": True,
+        "updated_keys": list(updates.keys()),
+    }
+
+
+# Pipeline stage ordering for dependency checks
+_STAGE_ORDER = [
+    "intent", "prd", "architect", "plan", "implement", "tester", "review", "closed",
+]
+_KNOWN_ACTIVE_STAGES = set(_STAGE_ORDER)
+
+
+def _classify_state_health(state: dict[str, Any]) -> str:
+    """Classify pipeline state health — mirrors orchestrator State Health Classification."""
+    current = state.get("current_stage")
+    project = state.get("project")
+    feature = state.get("feature")
+    stages = state.get("stages")
+
+    # uninitialized: missing/empty/placeholder fields or empty stages
+    if (
+        not current
+        or not project or (isinstance(project, str) and project.startswith("<"))
+        or not feature or (isinstance(feature, str) and feature.startswith("<"))
+        or stages == {} or stages is None
+    ):
+        return "uninitialized"
+
+    if current == "closed":
+        return "closed"
+
+    if current in _KNOWN_ACTIVE_STAGES and stages:
+        return "active"
+
+    return "corrupted"
+
+
+@mcp.tool()
+async def replay_stage(
+    stage_name: str,
+    reason: str,
+) -> dict[str, Any]:
+    """Reset a single stage to not_started for re-execution without clearing the pipeline.
+
+    Only available in supervised mode — too risky for autopilot/assisted.
+    Cannot replay a stage if a downstream stage has already completed
+    (must replay the chain from that point).
+
+    Preserves _notes for continuity. Increments the stage's retry_count.
+    Writes a record to _notes._replay_log[].
+
+    Args:
+        stage_name: The stage to replay (e.g. 'implement', 'tester').
+        reason: Why the replay is needed.
+    """
+    state = _load_pipeline_state()
+
+    # ── Guard: supervised mode only ───────────────────────────────────────
+    mode = state.get("pipeline_mode", "supervised")
+    if mode != "supervised":
+        return {
+            "success": False,
+            "reason": (
+                f"replay_stage is only available in supervised mode "
+                f"(current mode: {mode}). Switch with set_pipeline_mode first."
+            ),
+        }
+
+    # ── Guard: stage must exist ───────────────────────────────────────────
+    stages = state.get("stages", {})
+    if stage_name not in stages:
+        return {
+            "success": False,
+            "reason": f"Unknown stage '{stage_name}'. Known stages: {list(stages.keys())}",
+        }
+
+    # ── Guard: cannot replay if downstream completed stage depends on it ──
+    if stage_name in _STAGE_ORDER:
+        stage_idx = _STAGE_ORDER.index(stage_name)
+        for downstream in _STAGE_ORDER[stage_idx + 1:]:
+            if downstream in stages and stages[downstream].get("status") == "complete":
+                return {
+                    "success": False,
+                    "reason": (
+                        f"Cannot replay '{stage_name}' because downstream stage "
+                        f"'{downstream}' is already complete. Replay from "
+                        f"'{downstream}' first, or use pipeline_reset."
+                    ),
+                }
+
+    # ── Reset the stage ───────────────────────────────────────────────────
+    stage_record = stages[stage_name]
+    old_status = stage_record.get("status")
+    stage_record["status"] = "not_started"
+    stage_record["artefact"] = None
+    stage_record["completed_at"] = None
+    retry_count = stage_record.get("retry_count", 0)
+    stage_record["retry_count"] = retry_count + 1
+
+    # Update current_stage to the replayed stage and clear any lingering
+    # blocked_by so get_pipeline_status does not report a stale block reason.
+    state["current_stage"] = stage_name
+    state["blocked_by"] = None
+    state["last_updated"] = _to_iso_utc()
+
+    # ── Restore input snapshot if available ────────────────────────────────
+    notes = state.setdefault("_notes", {})
+    stage_inputs = notes.get("_stage_inputs", {})
+    restored_input = stage_inputs.get(stage_name)
+    if restored_input:
+        notes["handoff_payload"] = restored_input
+
+    # ── Append to _replay_log (50-cap) ────────────────────────────────────
+    replay_log = notes.setdefault("_replay_log", [])
+    replay_log.append({
+        "timestamp": _to_iso_utc(),
+        "stage": stage_name,
+        "reason": reason,
+        "previous_status": old_status,
+        "retry_count": retry_count + 1,
+        "input_restored": restored_input is not None,
+    })
+    if len(replay_log) > 50:
+        notes["_replay_log"] = replay_log[-40:]
+
+    # ── Increment _revision_count ─────────────────────────────────────────
+    revision_count = notes.setdefault("_revision_count", {})
+    revision_count[stage_name] = revision_count.get(stage_name, 0) + 1
+
+    # ── Mark path as exception ────────────────────────────────────────────
+    notes["_current_path"] = f"exception:replay:{stage_name}"
+
+    _save_pipeline_state(state)
+
+    return {
+        "success": True,
+        "stage": stage_name,
+        "new_status": "not_started",
+        "retry_count": retry_count + 1,
+        "input_restored": restored_input is not None,
+        "message": (
+            f"Stage '{stage_name}' reset to not_started (retry #{retry_count + 1}). "
+            f"Reason: {reason}. "
+            + ("Original input snapshot restored to handoff_payload. " if restored_input else "")
+            + "Route to the appropriate agent to re-execute this stage."
+        ),
     }
 
 
@@ -557,6 +786,10 @@ async def pipeline_reset(
     )
 
 
+# Hard cap: prevents agents passing timeout=1200 from freezing the chat for 20 min.
+_RUN_COMMAND_MAX_TIMEOUT = 600
+
+
 @mcp.tool()
 async def run_command(
     command: str,
@@ -567,36 +800,69 @@ async def run_command(
 
     Use this for running tests (pytest, playwright), linters (black, ruff),
     formatters, build steps, or any other shell command the pipeline needs to
-    execute hands-free. Agents should prefer this over asking the user to run
-    commands manually in a terminal.
+    execute hands-free. Intended for use by pipeline agents, not general chat.
+
+    **Windows note:** Do NOT use pytest-xdist parallel flags (-n auto, -n N) in
+    commands passed to this tool. Worker subprocesses inherit stdout/stderr pipe
+    handles and can prevent the tool from returning if a worker exits abnormally.
+    Use plain `pytest tests/ -q` instead.
 
     Args:
-        command: Shell command to run (e.g. ".venv/Scripts/pytest tests/ -v").
+        command: Shell command to run (e.g. ".venv/Scripts/pytest tests/ -q").
                  Executed in the workspace root directory with shell=True.
-        timeout: Seconds before the process is killed. Default 60s. Increase for
-                 long test suites, Playwright runs, or slow build steps.
+        timeout: Seconds before the process is killed. Default 60s. Maximum 600s.
+                 Increase for slow test suites or Playwright runs, but prefer
+                 splitting large suites into smaller targeted runs.
         max_output_chars: Truncate combined output to this many characters to
                           avoid flooding the context window. Default 20000.
     """
+    # Enforce hard cap — ignore caller-supplied values above the maximum.
+    effective_timeout = min(float(timeout), float(_RUN_COMMAND_MAX_TIMEOUT))
+
+    # On Windows, CREATE_NEW_PROCESS_GROUP puts the subprocess into its own
+    # process group. This allows CTRL_BREAK_EVENT to signal the ENTIRE tree
+    # (including pytest-xdist workers) rather than just the shell process,
+    # which is essential for releasing inherited pipe write-end handles so
+    # communicate() can return instead of hanging indefinitely.
+    _flags = _subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+
     try:
         process = await asyncio.create_subprocess_shell(
             command,
             cwd=str(WORKSPACE_ROOT),
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            creationflags=_flags,
         )
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                process.communicate(), timeout=float(timeout)
+                process.communicate(), timeout=effective_timeout
             )
         except asyncio.TimeoutError:
-            process.kill()
-            await process.communicate()
+            # Signal the entire process group (kills xdist workers too on Windows),
+            # then give them a short grace period to close their pipe handles.
+            try:
+                if sys.platform == "win32":
+                    os.kill(process.pid, _signal.CTRL_BREAK_EVENT)
+                else:
+                    process.kill()
+            except Exception:
+                process.kill()
+            try:
+                await asyncio.wait_for(process.communicate(), timeout=5.0)
+            except asyncio.TimeoutError:
+                pass  # Workers still alive; accept the orphan and move on
             return {
                 "success": False,
                 "exit_code": -1,
                 "command": command,
-                "reason": f"Command timed out after {timeout}s",
+                "reason": (
+                    f"Command timed out after {effective_timeout:.0f}s. "
+                    "If running pytest, avoid '-n auto' (xdist workers inherit pipe handles "
+                    "on Windows and can prevent this tool from returning). "
+                    "Use plain 'pytest tests/ -q' instead."
+                ),
                 "output": "",
                 "truncated": False,
                 "cwd": str(WORKSPACE_ROOT),
