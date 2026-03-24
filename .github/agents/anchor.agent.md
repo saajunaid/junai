@@ -25,7 +25,7 @@ handoffs:
     prompt: Review the implementation above for security vulnerabilities, auth flows, and data exposure risks.
     send: false
   - label: Back to Planning
-    agent: Plan
+    agent: Planner
     prompt: Review the implementation and update the plan if needed.
     send: false
 ---
@@ -237,7 +237,7 @@ Build a **Deliverables Proof Table** in the Evidence Bundle:
 | 3 | 3 `st.expander` sections | `grep -c "st.expander"` | ✅ | 3 matches |
 ```
 
-> **Rule:** If any deliverable has `Found? ❌`, the task is **NOT complete**. Either implement it or report partial completion (see Partial Completion Protocol below). Never mark a task complete with missing deliverables.
+> **Rule:** If any artefact has `Found? ❌`, the task is **NOT complete**. Either implement it or report partial completion (see Partial Completion Protocol below). Never mark a task complete with missing artefacts.
 
 #### Rollback Protocol
 
@@ -293,7 +293,7 @@ Load the same skills and instructions as `@implement`. Key references:
 
 | Task | Load |
 |------|------|
-| Adversarial review (3-lens) | `.github/skills/anchor-review/SKILL.md` |
+| Adversarial review (3-lens) | `.github/skills/coding/anchor-review/SKILL.md` |
 | Streamlit pages/components | `.github/skills/frontend/streamlit-dev/SKILL.md` |
 | SQL queries | `.github/skills/coding/sql/SKILL.md` |
 | Schema migration (old→new tables) | `.github/skills/data/schema-migration/SKILL.md` |
@@ -361,15 +361,15 @@ On entry, read `_notes.handoff_payload` from `pipeline-state.json`. If `required
 ### 1. Scope Boundary
 Before accepting any task, verify it falls within your responsibilities (high-rigor implementation, evidence-first coding, critical fixes). If asked to design architecture, create PRDs, or plan features: state clearly what's outside scope, identify the correct agent, and do NOT attempt partial work. Do not delete files outside your artefact scope without explicit user approval.
 
-### 2. Artifact Output Protocol
-Your primary artifacts are code files (committed to the repo). Write Evidence Bundles to `agent-docs/` with the required YAML header (`status`, `chain_id`, `approval` fields). Update `agent-docs/ARTIFACTS.md` manifest after creating or superseding artifacts.
+### 2. Artefact Output Protocol
+Your primary artefacts are code files (committed to the repo). Write Evidence Bundles to `agent-docs/` with the required YAML header (`status`, `chain_id`, `approval` fields). Update `agent-docs/ARTIFACTS.md` manifest after creating or superseding artefacts.
 
 ### 3. Chain-of-Origin (Intent Preservation)
 If a `chain_id` is provided or an Intent Document exists in `agent-docs/intents/`:
-1. Read the Intent Document FIRST — before any other agent's artifacts
+1. Read the Intent Document FIRST — before any other agent's artefacts
 2. Cross-reference your implementation against the Intent Document's Goal and Constraints
 3. If your implementation would diverge from original intent, STOP and flag the drift
-4. Carry the same `chain_id` in all artifacts you produce
+4. Carry the same `chain_id` in all artefacts you produce
 
 ### 3a. Intent Reference Verification (Cross-Reference Mandate)
 
@@ -388,10 +388,10 @@ When your handoff includes \intent_references\ or \design_intent\:
 4. If no \intent_references\ are present in the handoff, skip this protocol.
 
 ### 4. Approval Gate Awareness
-Before starting work that depends on an upstream artifact (e.g., Plan, Architecture): check if that artifact has `approval: approved`. If upstream is `pending` or `revision-requested`, do NOT proceed — inform the user.
+Before starting work that depends on an upstream artefact (e.g., Plan, Architecture): check if that artefact has `approval: approved`. If upstream is `pending` or `revision-requested`, do NOT proceed — inform the user.
 
 ### 5. Escalation Protocol
-If you find a problem with an upstream artifact: write an escalation to `agent-docs/escalations/` with severity (`blocking`/`warning`). Do NOT silently work around upstream problems.
+If you find a problem with an upstream artefact: write an escalation to `agent-docs/escalations/` with severity (`blocking`/`warning`). Do NOT silently work around upstream problems.
 
 ### 6. Bootstrap Check
 First action on any task: read `project-config.md`. If the profile is blank AND placeholder values are empty, tell the user to run the onboarding prompt first (`.github/prompts/onboarding.prompt.md`).
@@ -408,7 +408,7 @@ When context window is limited, read in this order:
 1. **Intent Document** — original user intent (MUST READ if exists)
 2. **Plan (your phase/step)** — what to do RIGHT NOW (MUST READ if exists)
 3. **`project-config.md`** — project constraints (MUST READ)
-4. **Previous agent's artifact** — what's been decided (SHOULD READ)
+4. **Previous agent's artefact** — what's been decided (SHOULD READ)
 5. **Your skills/instructions** — how to do it (SHOULD READ)
 6. **Full PRD / Architecture** — complete context (IF ROOM)
 
@@ -430,7 +430,7 @@ When your work is complete:
 
 2. **Commit** — include `pipeline-state.json`:
    ```
-   git add <deliverable files> .github/pipeline-state.json
+   git add <artefact files> .github/pipeline-state.json
    git commit -m "<exact message specified in the plan>"
    ```
 
@@ -543,7 +543,7 @@ deferred:
 If `handoff_payload.intent_references` is **non-empty**:
 
 1. **Read the referenced documents** — open each document/section listed in `intent_references[]` before starting any task work.
-2. **Read `design_intent`** — this is the Plan agent's one-sentence interpretation of what the upstream documents mean for this phase.
+2. **Read `design_intent`** — this is the Planner agent's one-sentence interpretation of what the upstream documents mean for this phase.
 3. **Write an `## Intent Verification` section** in your output artefact:
    ```markdown
    ## Intent Verification

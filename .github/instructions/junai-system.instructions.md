@@ -5,7 +5,7 @@ applyTo: "**"
 
 # junai Agent Pipeline — System Reference
 
-This file is deployed and maintained by the junai VS Code extension. It is refreshed automatically when you run **Update Agent Pool** — do not edit it by hand. For project-specific context, edit `.github/copilot-instructions.md` instead (that file is yours and is never overwritten).
+This file is deployed and maintained by the junai VS Code extension. It is refreshed automatically when you run **Update Agent Pool** — do not edit it by hand. For project-specific context, edit `.github/copilot-instructions.md` instead (the extension manages only a small `<!-- junai:start -->` … `<!-- junai:end -->` section there; your content outside the markers is never touched).
 
 ---
 
@@ -18,7 +18,7 @@ Each agent lives in `.github/agents/<name>.agent.md`. Each has a YAML frontmatte
 | Model | Agents |
 |-------|--------|
 | Claude Opus 4.6 | `anchor`, `architect` — highest-rigor work |
-| Claude Sonnet 4.6 | `orchestrator`, `plan`, `prd`, `prompt-engineer`, `security-analyst`, `accessibility`, `code-reviewer`, `debug`, `mentor`, `project-manager`, `ux-designer`, `ui-ux-designer`, `knowledge-transfer` |
+| Claude Sonnet 4.6 | `orchestrator`, `planner`, `prd`, `prompt-engineer`, `security-analyst`, `accessibility`, `code-reviewer`, `debug`, `mentor`, `project-manager`, `ux-designer`, `ui-ux-designer`, `knowledge-transfer` |
 | GPT-5.3-Codex | `implement`, `streamlit-developer`, `frontend-developer`, `data-engineer`, `devops`, `janitor`, `sql-expert`, `tester` |
 | Gemini 3.1 Pro (Preview) | `mermaid-diagram-specialist`, `svg-diagram` — visual artifact generation only |
 
@@ -29,7 +29,7 @@ Each agent lives in `.github/agents/<name>.agent.md`. Each has a YAML frontmatte
 | **Orchestrator** | Pipeline brain — reads `pipeline-state.json`, validates artefact contracts, routes to next agent. Never writes code. |
 | **Anchor** | Evidence-first implementation — captures baseline, verifies every deliverable exists with grep proof, applies Partial Completion Protocol when context runs low |
 | **Architect** | System design, ADR authoring, diagrams. Writes ADRs to `docs/architecture/agentic-adr/ADR-{feature-slug}.md` |
-| **Plan** | Breaks approved architecture into phased implementation plans in `.github/plans/` |
+| **Planner** | Breaks approved architecture into phased implementation plans in `.github/plans/` |
 | **PRD** | Captures requirements into a formal PRD document |
 | **Implement** | Writes production code following the plan |
 | **Tester / Code Reviewer / Debug / Security Analyst** | Quality gates at various pipeline stages |
@@ -41,7 +41,7 @@ Each agent lives in `.github/agents/<name>.agent.md`. Each has a YAML frontmatte
 ## The Pipeline Flow
 
 ```
-Intent → PRD → Architecture/ADR → Plan → Implement → Test → Review → (Security) → Done
+Intent → PRD → Architecture/ADR → Planner → Implement → Test → Review → (Security) → Done
 ```
 
 Each stage is gated. Gates are stored in `.github/pipeline-state.json`. The Orchestrator reads the state, satisfies gates (manually in supervised mode, automatically in autopilot mode), and routes to the next agent.
@@ -121,10 +121,13 @@ All inter-agent artefacts are registered here. Status values: `current` | `super
 - ADR path: `docs/architecture/agentic-adr/ADR-{feature-slug}.md`
 - Plans: `.github/plans/<feature-slug>.md`
 
+### Git Commit Convention (all agents)
+When making a git commit at stage completion, always stage `.github/pipeline-state.json` explicitly alongside the code changes. This keeps pipeline state in sync with git history so that `git reset --hard` restores both atomically.
+
 ### Partial Completion Protocol (all agents, §8)
 If an agent runs out of context or token budget mid-task:
 1. Stop immediately — do not attempt to compress or rush
-2. Commit whatever stable work exists
+2. Commit whatever stable work exists (include `.github/pipeline-state.json`)
 3. Report honestly: what is DONE vs what is NOT DONE
 4. Do NOT mark the pipeline stage as complete
 5. User resumes with a fresh session
