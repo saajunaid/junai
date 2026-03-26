@@ -6,7 +6,7 @@
 
 <!-- mcp-name: io.github.saajunaid/junai-mcp -->
 
-> 24 specialised AI agents. A 9-stage deterministic pipeline. Zero hallucinated routing.  
+> 25 specialised AI agents. A 9-stage deterministic pipeline. Zero hallucinated routing.  
 > *"Trust the LLM to pick the right agent"* — worked great, right up until it didn't.
 
 **junai is Un-AI routing with full AI power.**  
@@ -22,10 +22,10 @@ Your agents stay smart. Your pipeline stays predictable.
 
 junai is a portable agent framework for VS Code + GitHub Copilot. It gives you:
 
-- **24 specialised agents** — Architect, Implement, Tester, Code Reviewer, Debug, Security Analyst, Anchor, and more
+- **25 specialised agents** — Architect, Implement, Tester, Code Reviewer, Debug, Security Analyst, Anchor, and more
 - **A deterministic pipeline** — a Python state machine owns all routing logic; the LLM cannot hallucinate the wrong next step
 - **Three pipeline modes** — supervised (you approve everything), assisted (agents route, you approve gates), and autopilot ⚠️ *(beta — agents route, smart gates, only intent requires approval)*
-- **70+ reusable skills, 30 prompts, 23 instruction files** — loaded dynamically by agents as needed
+- **121 reusable skills, 30 prompts, 24 instruction files** — loaded dynamically by agents as needed
 - **Chat-first UX** — init, reset, mode switch, gate approval all from the Copilot chat window
 
 ---
@@ -237,7 +237,7 @@ Three ways to get junai — pick the one that fits your workflow:
 Install [junai — Agent Pipeline](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai) from the VS Code Marketplace, then run **`junai: Initialize Agent Pipeline`** from the command palette.
 
 That's it. The extension:
-- Deploys all 587 pool files (`.github/agents/`, `.github/skills/`, `.github/tools/`, etc.) into your workspace
+- Deploys all 1322 pool files (`.github/agents/`, `.github/skills/`, `.github/tools/`, etc.) into your workspace
 - Scaffolds `pipeline-state.json`
 - Automatically writes `.vscode/mcp.json` with the `uvx junai-mcp` entry
 
