@@ -1,7 +1,7 @@
 ---
 name: Orchestrator
 description: Pipeline brain - reads pipeline state, validates artefact contracts, and routes between agents. Does not write code or create designs. Manages the supervised-autonomous workflow.
-tools: [problems, readFile, editFiles, changes, codebase, fileSearch, listDirectory, searchResults, textSearch, usages, fetch, junai/get_pipeline_status, junai/notify_orchestrator, junai/pipeline_init, junai/pipeline_reset, junai/satisfy_gate, junai/set_pipeline_mode, junai/skip_stage, junai/update_notes, junai/validate_deferred_paths, junai/replay_stage, github/*]
+tools: [read, search, web, problems, changes, junai-mcp/*, github/*]
 model: Claude Sonnet 4.6
 handoffs:
   - label: Generate PRD
@@ -213,7 +213,7 @@ If validation fails:
 #### 2a. Skill File Existence Check (Pre-Handoff)
 
 When the `handoff_payload` contains `required_skills[]`, verify each skill file exists on disk before routing:
-- For each path in `required_skills[]`, confirm the file resolves to an actual `.github/skills/*/SKILL.md`
+- For each path in `required_skills[]`, confirm it resolves to a real skill file under `.github/skills/` and that the target filename is `SKILL.md`
 - If a skill file is **missing**: warn the user with the exact path. Do NOT block routing — the target agent may still function without the skill, but the user should be aware.
 - If ALL skill files resolve: proceed silently (no extra output needed).
 
