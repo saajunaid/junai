@@ -18,7 +18,7 @@
 
 $JUNO_POOL = "E:\Projects\junai"
 $JUNO_GITHUB = "$JUNO_POOL\.github"
-$POOL_FOLDERS = @("agents", "skills", "prompts", "instructions", "diagrams", "tools")
+$POOL_FOLDERS = @("agents", "skills", "prompts", "instructions", "diagrams", "tools", "recipes", "agent-docs", "handoffs", "plans")
 $JUNAI_VSCODE = "E:\Projects\junai-vscode"
 $PYPI_KEY_FILE = Join-Path $JUNO_POOL "pypimcp.key"
 $VSCE_PAT_FILE = Join-Path $JUNAI_VSCODE "vscode.pat"
@@ -120,7 +120,7 @@ function junai-push {
     }
     # ──────────────────────────────────────────────────────────────────────────
 
-    git add .github/agents .github/skills .github/prompts .github/instructions .github/diagrams .github/tools | Out-Null
+    git add .github/agents .github/skills .github/prompts .github/instructions .github/diagrams .github/tools .github/recipes .github/agent-docs .github/handoffs .github/plans | Out-Null
 
     if ([string]::IsNullOrWhiteSpace($Message)) {
         $projectName = Split-Path $ProjectRoot -Leaf
