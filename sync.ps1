@@ -10,18 +10,18 @@
 #
 # Usage from any project root:
 #   junai-pull                    pull latest pool from junai --> current project
-#   junai-push                    push pool from current project --> junai + commit + push (+ auto-publish when keys exist)
-#   junai-push -NoPublish         push only (skip publish)
+#   junai-push                    push pool from current project --> junai + commit + push
 #   junai-revert [-Last N] [-Sha SHA[,SHA...]]  revert commits + cascade to all repos
 #   junai-export [OutputPath]     export pool to a local folder or zip (no GitHub needed)
 #   junai-import SourcePath        import pool from a local folder or zip into current project
 
 $JUNO_POOL = "E:\Projects\junai"
 $JUNO_GITHUB = "$JUNO_POOL\.github"
-$POOL_FOLDERS = @("agents", "skills", "prompts", "instructions", "diagrams", "tools", "recipes", "agent-docs", "handoffs", "plans")
-$JUNAI_VSCODE = "E:\Projects\junai-vscode"
-$PYPI_KEY_FILE = Join-Path $JUNO_POOL "pypimcp.key"
-$VSCE_PAT_FILE = Join-Path $JUNAI_VSCODE "vscode.pat"
+$POOL_FOLDERS = @("agents", "skills", "prompts", "instructions", "diagrams", "tools", "recipes")
+$POOL_FILES = @("runtime-targets.json")
+$ROOT_PUSH_FILES = @("export_runtime_resources.py")
+# Fully-managed folders: wiped before copy so renamed/moved/deleted files don't persist
+$CLEAN_FOLDERS = @("agents", "skills", "prompts", "instructions", "tools", "recipes")
 
 function junai-pull {
     param([string]$ProjectRoot = (Get-Location).Path)
@@ -41,10 +41,28 @@ function junai-pull {
     foreach ($folder in $POOL_FOLDERS) {
         $src = Join-Path $JUNO_GITHUB $folder
         if (Test-Path $src) {
+            # Clean deploy for fully-managed dirs: wipe first to remove stale files
+            if ($CLEAN_FOLDERS -contains $folder) {
+                $dest = Join-Path $target $folder
+                if (Test-Path $dest) {
+                    Remove-Item $dest -Recurse -Force
+                }
+            }
             Copy-Item $src $target -Recurse -Force
             Write-Host "  [OK]  $folder" -ForegroundColor Green
         } else {
             Write-Host "  [--]  $folder - not found in pool, skipped" -ForegroundColor Yellow
+        }
+    }
+
+    foreach ($file in $POOL_FILES) {
+        $src = Join-Path $JUNO_GITHUB $file
+        $dest = Join-Path $target $file
+        if (Test-Path $src) {
+            Copy-Item $src $dest -Force
+            Write-Host "  [OK]  $file" -ForegroundColor Green
+        } else {
+            Write-Host "  [--]  $file - not found in pool, skipped" -ForegroundColor Yellow
         }
     }
 
@@ -65,10 +83,7 @@ function junai-pull {
 function junai-push {
     param(
         [string]$ProjectRoot = (Get-Location).Path,
-        [string]$Message = "",
-        [switch]$Publish,
-        [switch]$NoPublish,
-        [string]$McpVersion = ""
+        [string]$Message = ""
     )
 
     $source = Join-Path $ProjectRoot ".github"
@@ -90,6 +105,28 @@ function junai-push {
             Write-Host "  [OK]  $folder" -ForegroundColor Green
         } else {
             Write-Host "  [--]  $folder - not in project, skipped" -ForegroundColor DarkGray
+        }
+    }
+
+    foreach ($file in $POOL_FILES) {
+        $src = Join-Path $source $file
+        $dest = Join-Path $JUNO_GITHUB $file
+        if (Test-Path $src) {
+            Copy-Item $src $dest -Force
+            Write-Host "  [OK]  $file" -ForegroundColor Green
+        } else {
+            Write-Host "  [--]  $file - not in project, skipped" -ForegroundColor DarkGray
+        }
+    }
+
+    foreach ($file in $ROOT_PUSH_FILES) {
+        $src = Join-Path $ProjectRoot $file
+        $dest = Join-Path $JUNO_POOL $file
+        if (Test-Path $src) {
+            Copy-Item $src $dest -Force
+            Write-Host "  [OK]  $file" -ForegroundColor Green
+        } else {
+            Write-Host "  [--]  $file - not in project root, skipped" -ForegroundColor DarkGray
         }
     }
 
@@ -120,7 +157,7 @@ function junai-push {
     }
     # ──────────────────────────────────────────────────────────────────────────
 
-    git add .github/agents .github/skills .github/prompts .github/instructions .github/diagrams .github/tools .github/recipes .github/agent-docs .github/handoffs .github/plans | Out-Null
+    git add .github/agents .github/skills .github/prompts .github/instructions .github/diagrams .github/tools .github/recipes .github/runtime-targets.json export_runtime_resources.py | Out-Null
 
     if ([string]::IsNullOrWhiteSpace($Message)) {
         $projectName = Split-Path $ProjectRoot -Leaf
@@ -136,127 +173,11 @@ function junai-push {
     Write-Host ""
     Write-Host "  Committed and pushed to junai." -ForegroundColor Magenta
     Write-Host ""
-
-    $hasPypiKey = Test-Path $PYPI_KEY_FILE
-    $hasVscePat = Test-Path $VSCE_PAT_FILE
-    $hasAnyKey = $hasPypiKey -or $hasVscePat
-    $shouldPublish = $Publish -or (-not $NoPublish -and $hasAnyKey)
-
-    if ($NoPublish) {
-        Write-Host "  [--]  Publish skipped (-NoPublish)." -ForegroundColor DarkGray
-        return
-    }
-
-    if (-not $shouldPublish) {
-        Write-Host "  [--]  No publish keys found. Skipping release." -ForegroundColor DarkGray
-        Write-Host "       Add $PYPI_KEY_FILE and/or $VSCE_PAT_FILE to enable auto-publish." -ForegroundColor DarkGray
-        return
-    }
-
-    if (-not $hasPypiKey) {
-        Write-Host "  [--]  PyPI key missing; MCP publish skipped." -ForegroundColor DarkGray
-    }
-    if (-not $hasVscePat) {
-        Write-Host "  [--]  VS Code PAT missing; extension publish skipped." -ForegroundColor DarkGray
-    }
-
-    junai-release -McpVersion $McpVersion -SkipMcp:(-not $hasPypiKey) -SkipExtension:(-not $hasVscePat)
-}
-
-function junai-release {
-    # Publishes MCP package and VS Code extension using local secret files.
-    # Secret files:
-    #   E:\Projects\junai\pypimcp.key
-    #   E:\Projects\junai-vscode\vscode.pat
-    param(
-        [string]$McpVersion = "",
-        [switch]$SkipMcp,
-        [switch]$SkipExtension
-    )
-
-    Write-Host ""
-    Write-Host "  JUNAI RELEASE  MCP + VS Code" -ForegroundColor Cyan
-    Write-Host "  -----------------------------------------" -ForegroundColor DarkGray
-
-    # ── Pre-publish agent validation gate ─────────────────────────────────
-    $validatorScript = "E:\Projects\agent-sandbox\validate_agents.py"
-    $pythonExe       = "E:\Projects\agent-sandbox\.venv\Scripts\python.exe"
-    if ((Test-Path $validatorScript) -and (Test-Path $pythonExe)) {
-        & $pythonExe $validatorScript
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  [ABORT]  Agent validation failed. Fix errors above before publishing." -ForegroundColor Red
-            return
-        }
-    } else {
-        Write-Host "  [WARN]  validate_agents.py or venv not found — skipping validation" -ForegroundColor Yellow
-    }
-    # ──────────────────────────────────────────────────────────────────────
-
-    if (-not $SkipMcp) {
-        if (-not (Test-Path $PYPI_KEY_FILE)) {
-            Write-Host "  [ERROR] Missing PyPI key file: $PYPI_KEY_FILE" -ForegroundColor Red
-            return
-        }
-
-        $pypiToken = (Get-Content $PYPI_KEY_FILE -Raw).Trim()
-        if ([string]::IsNullOrWhiteSpace($pypiToken)) {
-            Write-Host "  [ERROR] PyPI key file is empty: $PYPI_KEY_FILE" -ForegroundColor Red
-            return
-        }
-
-        $prevTwineUser = $env:TWINE_USERNAME
-        $prevTwinePass = $env:TWINE_PASSWORD
-        try {
-            $env:TWINE_USERNAME = "__token__"
-            $env:TWINE_PASSWORD = $pypiToken
-            junai-publish-mcp -Version $McpVersion
-        } finally {
-            $env:TWINE_USERNAME = $prevTwineUser
-            $env:TWINE_PASSWORD = $prevTwinePass
-        }
-    }
-
-    if (-not $SkipExtension) {
-        if (-not (Test-Path $VSCE_PAT_FILE)) {
-            Write-Host "  [ERROR] Missing VS Code PAT file: $VSCE_PAT_FILE" -ForegroundColor Red
-            return
-        }
-
-        $vscePat = (Get-Content $VSCE_PAT_FILE -Raw).Trim()
-        if ([string]::IsNullOrWhiteSpace($vscePat)) {
-            Write-Host "  [ERROR] VS Code PAT file is empty: $VSCE_PAT_FILE" -ForegroundColor Red
-            return
-        }
-
-        if (-not (Test-Path (Join-Path $JUNAI_VSCODE "package.json"))) {
-            Write-Host "  [ERROR] junai-vscode repo not found at $JUNAI_VSCODE" -ForegroundColor Red
-            return
-        }
-
-        $prevVscePat = $env:VSCE_PAT
-        try {
-            $env:VSCE_PAT = $vscePat
-            Push-Location $JUNAI_VSCODE
-            Write-Host "  Publishing VS Code extension..." -ForegroundColor DarkGray
-            npm run publish
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "  [ERROR] VS Code extension publish failed." -ForegroundColor Red
-                return
-            }
-        } finally {
-            Pop-Location
-            $env:VSCE_PAT = $prevVscePat
-        }
-    }
-
-    Write-Host "  [OK]  Release flow completed." -ForegroundColor Green
-    Write-Host ""
 }
 
 function junai-publish-mcp {
     # Bumps the version in pyproject.toml and publishes junai-mcp to PyPI.
-    # Uses a project-local .venv and auto-installs build/twine as needed.
-    # Requires: PyPI credentials configured.
+    # Requires: pip install build twine (once per machine), PyPI credentials configured.
     #
     # Usage:
     #   junai-publish-mcp           # prompts for new version
@@ -280,9 +201,8 @@ function junai-publish-mcp {
     Write-Host "  Current version: $currentVer" -ForegroundColor DarkGray
 
     if ([string]::IsNullOrWhiteSpace($Version)) {
-        # No version passed — keep current version silently (no interactive prompt).
-        # Pass -Version explicitly to bump (e.g. junai-release -McpVersion "0.2.1").
-        $Version = $currentVer
+        $Version = Read-Host "  New version (blank to keep $currentVer)"
+        if ([string]::IsNullOrWhiteSpace($Version)) { $Version = $currentVer }
     }
 
     if ($Version -ne $currentVer) {
@@ -291,35 +211,15 @@ function junai-publish-mcp {
         Write-Host "  [OK]  pyproject.toml bumped $currentVer --> $Version" -ForegroundColor Green
     }
 
-    # Ensure local junai venv exists and has build tooling
-    $venvPython = Join-Path $JUNO_POOL ".venv\Scripts\python.exe"
-    if (-not (Test-Path $venvPython)) {
-        Write-Host "  Creating local .venv for junai..." -ForegroundColor DarkGray
-        Push-Location $JUNO_POOL
-        py -3 -m venv .venv 2>$null
-        if (-not (Test-Path $venvPython)) {
-            python -m venv .venv 2>$null
-        }
-        Pop-Location
-
-        if (-not (Test-Path $venvPython)) {
-            Write-Host "  [ERROR] Failed to create .venv at $JUNO_POOL" -ForegroundColor Red
-            Pop-Location; return
-        }
-    }
-
-    Write-Host "  Ensuring build tooling in junai .venv..." -ForegroundColor DarkGray
-    & $venvPython -m pip install --upgrade pip build twine | Out-Null
-
     # Clean old dist/
     $dist = Join-Path $JUNO_POOL "dist"
     if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 
     Write-Host "  Building..." -ForegroundColor DarkGray
-    & $venvPython -m build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR" } | Write-Host
+    python -m build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR" } | Write-Host
 
     Write-Host "  Uploading to PyPI..." -ForegroundColor DarkGray
-    & $venvPython -m twine upload dist\*
+    twine upload dist\*
 
     # Commit version bump
     $hasChanges = (git status --porcelain) -ne $null
