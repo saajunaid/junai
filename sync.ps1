@@ -265,7 +265,7 @@ function junai-publish-mcp {
     & $pythonCmd -m build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR" } | Write-Host
 
     Write-Host "  Uploading to PyPI..." -ForegroundColor DarkGray
-    twine upload dist\*
+    & $pythonCmd -m twine upload dist\*
 
     # Commit version bump
     $hasChanges = (git status --porcelain) -ne $null
