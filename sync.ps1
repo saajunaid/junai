@@ -262,7 +262,7 @@ function junai-publish-mcp {
     }
 
     Write-Host "  Building..." -ForegroundColor DarkGray
-    & $pythonCmd -m build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR" } | Write-Host
+    uv build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR|Built|building" } | Write-Host
 
     Write-Host "  Uploading to PyPI..." -ForegroundColor DarkGray
     twine upload dist\*
