@@ -251,8 +251,18 @@ function junai-publish-mcp {
     $dist = Join-Path $JUNO_POOL "dist"
     if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 
+    # Resolve Python — 'python' may not be in PATH on Windows (py launcher only)
+    $pythonCmd = "python"
+    if (-not (Get-Command "python" -ErrorAction SilentlyContinue)) {
+        $pyExe = & py -c "import sys; print(sys.executable)" 2>$null
+        if ($pyExe -and (Test-Path $pyExe)) {
+            $pythonCmd = $pyExe
+            Write-Host "  Resolved Python via py launcher: $pyExe" -ForegroundColor DarkGray
+        }
+    }
+
     Write-Host "  Building..." -ForegroundColor DarkGray
-    python -m build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR" } | Write-Host
+    & $pythonCmd -m build 2>&1 | Where-Object { $_ -match "Successfully|error|ERROR" } | Write-Host
 
     Write-Host "  Uploading to PyPI..." -ForegroundColor DarkGray
     twine upload dist\*
