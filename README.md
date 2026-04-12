@@ -1,7 +1,5 @@
 # junai — Let AI Think. Let Code Route.
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/junai-labs.junai?label=VS%20Code%20Marketplace&color=0066b8&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/junai-labs.junai?color=0066b8)](https://marketplace.visualstudio.com/items?itemName=junai-labs.junai)
 [![PyPI](https://img.shields.io/pypi/v/junai-mcp?label=MCP%20Server&color=3776AB&logo=python)](https://pypi.org/project/junai-mcp/)
 
 <!-- mcp-name: io.github.saajunaid/junai-mcp -->
