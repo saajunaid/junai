@@ -203,6 +203,15 @@ Revisit Docker / Electron / standalone apps only when:
 
 **Objective:** Make `fann-vscode` installable, understandable, and tryable by real external users with zero hand-holding.
 
+### Pre-requisite: fann-core packaging fix
+
+`fann-vscode` currently depends on `fann-core` via `file:../fann-core` local linking. This **must** be resolved before `npx vsce package` can produce a `.vsix` that works on any machine. Options (pick one):
+- **Bundle into extension:** copy the compiled `fann-core` output into the extension's `dist/` and reference it as a local module
+- **Publish to npm first:** `npm publish` fann-core as `@junai-labs/fann-core` (or scoped name), then reference as a normal dependency
+- **Inline the dependency:** vendor the compiled output directly into the extension source tree
+
+The chosen approach must be validated by: install the `.vsix` on a clean machine with no local `fann-core` checkout → all 4 commands work.
+
 ### Build in this order
 
 1. **Marketplace listing polish**
@@ -323,14 +332,30 @@ A developer searching "Fann" or "coding companion" on the VS Code Marketplace ca
      "You've resumed 5 times. How is it working? [Send Feedback] [Not Now]"
    - After the first `Deep Plan` is completed:
      "Your first plan is ready. Was this useful? [Send Feedback] [Not Now]"
+   - **Day-2 return moment:** After the user's first `Ask` or `Deep Plan`, show a one-time non-blocking message the next day (or next activation):
+     "Welcome back. Your last session context is ready. [Resume from Memory] [Start Fresh]"
+     This engineers the "aha" moment — the value of Fann compounds on day 2, not day 1. The goal is to make the user *experience* resume, not just know it exists.
    - Limit to one feedback prompt per session maximum; do not chain or spam
 
+3A. **Codebase-aware Deep Plan** *(implemented pre-alpha — fixes the "plans feel generic" gap)*
+   - **Problem:** `Deep Plan` currently produces generic phased plans from user text alone. Internal feedback confirms plans feel templated and lack project-specific context.
+   - **Fix:** Wire a lightweight workspace scan into the Deep Plan pipeline so plans reflect the user's actual codebase.
+   - **Architecture:**
+     - fann-core: new `scanWorkspace()` function runs explore/verify workers against auto-detected project signals (`package.json`, `pyproject.toml`, `src/` structure, test files, CI config, `dream-memory.json`)
+     - fann-core: `createDeepPlanResult()` uses scan output in `contextReferences` to produce context-specific phases (real file paths, real tech stack, test-aware steps)
+     - Extension layer (junai-vscode / fann-vscode): optionally enriches the plan via `vscode.lm` API if any language model is available — no API key configuration, no separate auth; uses whatever model the user has (Copilot, local, Azure, etc.). Falls back to improved algorithmic path if no model available.
+   - **Contract:** `DeepPlanRequest/DeepPlanResult` unchanged — downstream consumers (rendering, persistence, dreamMemory) work without modification.
+   - **fann-core stays dependency-free** — no LLM SDK. The LLM call is the extension's responsibility.
+   - **Validation:** generate a plan for an existing project with tests and CI → verify phase tasks reference real paths and real tech stack signals.
+
 4. **Core product metrics tracking**
+   - **North star metric:** D2 retention on `Resume from Memory` — does the user come back the day after their first session and resume? This single metric proves the product thesis. If D2 resume retention is strong, Fann has product-market fit signal. If users only try `Ask` once and leave, the positioning isn't landing. Track and report this metric explicitly.
    - Track locally (in session state or a lightweight `.fann/metrics.json`):
      - activation: did the user run at least one command after install?
      - repeated use: did the user run a command on at least 3 different days?
      - most-used command: which of the 4 commands is used most?
      - return behavior: did the user use `Resume from Memory` at least twice?
+     - **D2 resume rate:** did the user use `Resume from Memory` within 48 hours of their first command?
    - Do NOT send telemetry externally without explicit opt-in
    - Display a summary in `Fann: Status` or the activity panel for the user's own awareness
 
