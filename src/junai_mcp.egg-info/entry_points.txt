@@ -1,2 +1,0 @@
-[console_scripts]
-junai-mcp = junai_mcp.server:main
