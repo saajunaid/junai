@@ -44,6 +44,7 @@ Auto-load these skills when the condition matches — do not skip.
 | Monorepo CI/CD and workspace config | `.github/skills/devops/monorepo/SKILL.md` |
 | Observability / monitoring setup | `.github/skills/coding/observability/SKILL.md` |
 | CI/CD pipeline design | `.github/skills/devops/ci-cd-pipeline/SKILL.md` |
+| Local dev-to-prod deployment loop (commit/push/monitor/fix) | `.github/skills/devops/deploy-local/SKILL.md` |
 | Windows Server deployment (IIS, NSSM, subpath) | `.github/skills/devops/windows-deployment/SKILL.md` |
 
 > **Project Context**: Read `project-config.md`. If a `profile` is set, use its Profile Definition to resolve `<PLACEHOLDER>` values in skills, instructions, and prompts.
@@ -146,6 +147,30 @@ Optimize pipelines and practices toward these delivery performance indicators:
 ### Security in Pipelines
 
 Integrate security scanning into CI/CD — SAST, DAST, and dependency scanning (SCA). Reference `.github/instructions/security.instructions.md` for details.
+
+### CI Failure Triage and Reliability Guardrails
+
+For CI/deploy incidents, use this sequence before changing workflow logic:
+
+- Reproduce the exact quality gates locally before touching workflow logic, matching the repository's CI scope and toolchain (for example Ruff/ESLint/format checks, tests, and build steps).
+- First classify the failing gate as one of: lint, format, test, build, workflow-runtime.
+- If the failing gate is lint/format/test/build, treat it as a source-code blocker first and fix/commit that file before workflow changes.
+- Treat workflow edits as orchestration fixes only; verify whether the blocker is actually source code (lint/format/test) and commit that file first.
+- Confirm push status with the primary signal `git log origin/main..HEAD --oneline` (empty output means no unpushed commits).
+- Keep workflow expressions conservative and parser-safe. Avoid fragile expression quoting patterns.
+- Prefer underscore job IDs when those IDs are referenced via `needs.<job_id>.result`.
+- Ensure notification/summary jobs still run for terminal states (`success`, `failure`, `skipped`, `cancelled`) so failures are never silent.
+- When validating parity, distinguish clearly between:
+   - local vs remote git parity (`HEAD` vs `origin/main`)
+   - deployment-root parity (`prod` path SHA vs `dev` path SHA)
+
+Primary verification commands:
+
+- `git log origin/main..HEAD --oneline`
+- `git rev-parse HEAD`
+- `git rev-parse origin/main`
+- `git -C <prod-root> rev-parse HEAD`
+- `git -C <dev-root> rev-parse HEAD`
 
 ### Deployment Checklist
 
