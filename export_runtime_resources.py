@@ -33,17 +33,25 @@ def ensure_clean_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
+CACHE_DIR_NAMES = {"__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".coverage", "htmlcov"}
+
+
+def _ignore_caches(_dir: str, names: list[str]) -> list[str]:
+    """shutil.copytree ignore callable that drops Python cache dirs at every depth."""
+    return [n for n in names if n in CACHE_DIR_NAMES]
+
+
 def copy_tree(source: Path, destination: Path, excluded_names: set[str] | None = None) -> None:
     """Copy a directory tree while excluding top-level names when requested."""
     excluded_names = excluded_names or set()
     destination.mkdir(parents=True, exist_ok=True)
 
     for child in source.iterdir():
-        if child.name in excluded_names:
+        if child.name in excluded_names or child.name in CACHE_DIR_NAMES:
             continue
         target = destination / child.name
         if child.is_dir():
-            shutil.copytree(child, target, dirs_exist_ok=True)
+            shutil.copytree(child, target, dirs_exist_ok=True, ignore=_ignore_caches)
         else:
             shutil.copy2(child, target)
 
@@ -147,22 +155,41 @@ def convert_instruction_to_rule(source_file: Path, destination_file: Path) -> No
     destination_file.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
+def _normalize_paths(paths: list[str]) -> set[str]:
+    """Normalize manifest path entries to forward-slash relative form."""
+    return {p.replace("\\", "/").strip("/") for p in paths if p}
+
+
 def export_target(manifest: dict[str, Any], target: dict[str, Any]) -> None:
     """Export one runtime target from the canonical .github source."""
     canonical_root = PROJECT_ROOT / manifest["canonical_root"]
     output_root = PROJECT_ROOT / manifest["output_root"] / target["name"]
     workspace_root = output_root / target["workspace_root"]
-    exclusions = set(manifest.get("exclusions", {}).get("skills", []))
+    exclusion_cfg = manifest.get("exclusions", {})
+    skill_exclusions = set(exclusion_cfg.get("skills", []))
+    private_roots = set(exclusion_cfg.get("private_roots", []))
+    private_paths = _normalize_paths(exclusion_cfg.get("private_paths", []))
 
     ensure_clean_dir(output_root)
 
     for copy_spec in target.get("copies", []):
+        source_rel = copy_spec["source"].replace("\\", "/").strip("/")
+        if source_rel in private_paths or source_rel in private_roots:
+            print(f"[SKIP] {target['name']}: copy '{source_rel}' is in exclusions")
+            continue
         source = canonical_root / copy_spec["source"]
         destination = workspace_root / copy_spec["destination"]
-        excluded_names = exclusions if copy_spec["source"] == "skills" else set()
+        excluded_names: set[str] = set(private_roots)
+        if source_rel == "skills":
+            excluded_names |= skill_exclusions
         copy_tree(source, destination, excluded_names=excluded_names)
 
     for file_spec in target.get("files", []):
+        source_rel = file_spec["source"].replace("\\", "/").strip("/")
+        top = source_rel.split("/", 1)[0]
+        if source_rel in private_paths or top in private_paths or top in private_roots:
+            print(f"[SKIP] {target['name']}: file '{source_rel}' is in exclusions")
+            continue
         source = canonical_root / file_spec["source"]
         destination = workspace_root / file_spec["destination"]
         copy_file(source, destination)
@@ -196,9 +223,26 @@ def main() -> int:
     args = parser.parse_args()
 
     manifest = load_manifest(args.manifest)
+    exclusion_cfg = manifest.get("exclusions", {})
+    forbidden_names = set(exclusion_cfg.get("private_roots", [])) | set(
+        exclusion_cfg.get("skills", [])
+    ) | _normalize_paths(exclusion_cfg.get("private_paths", []))
+
     for target in manifest["targets"]:
         export_target(manifest, target)
         print(f"[OK] Exported {target['name']} resources")
+
+    # Post-export verification: no private content in any output tree
+    output_root = PROJECT_ROOT / manifest["output_root"]
+    leaks: list[str] = []
+    for path in output_root.rglob("*"):
+        if any(part in forbidden_names for part in path.relative_to(output_root).parts):
+            leaks.append(str(path.relative_to(output_root)))
+    if leaks:
+        print(f"[FAIL] Private content leaked into export ({len(leaks)} paths):")
+        for leak in leaks[:20]:
+            print(f"   - {leak}")
+        return 1
 
     return 0
 
