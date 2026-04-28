@@ -5,6 +5,12 @@
   "exclusions": {
     "skills": [
       "vmie"
+    ],
+    "private_roots": [
+      "vmie"
+    ],
+    "private_paths": [
+      "plans"
     ]
   },
   "targets": [
@@ -14,8 +20,7 @@
       "files": [
         {"source": "project-config.md", "destination": "project-config.md"},
         {"source": "agent-docs/README.md", "destination": "agent-docs/README.md"},
-        {"source": "handoffs/README.md", "destination": "handoffs/README.md"},
-        {"source": "plans/README.md", "destination": "plans/README.md"}
+        {"source": "handoffs/README.md", "destination": "handoffs/README.md"}
       ],
       "copies": [
         {"source": "agents", "destination": "agents"},
@@ -24,16 +29,6 @@
         {"source": "instructions", "destination": "instructions"},
         {"source": "tools", "destination": "tools"},
         {"source": "recipes", "destination": "recipes"}
-      ]
-    },
-    {
-      "name": "claude",
-      "workspace_root": ".claude",
-      "copies": [
-        {"source": "skills", "destination": "skills"}
-      ],
-      "transforms": [
-        {"type": "instructions_to_rules", "source": "instructions", "destination": "rules"}
       ]
     },
     {
