@@ -186,7 +186,10 @@ Do not stop after editing files. The skill must carry the migration through the 
 
 ### First-run execution steps
 
-1. Run local checks that mirror the repo gates.
+1. Run local checks that mirror the repo gates before pushing:
+	- Python/backend repos: `ruff check .` (required)
+	- Frontend repos: lint/typecheck/build gates
+	- Full-stack repos: run both sets
 2. Commit and push if the user asked for a live migration.
 3. Watch the primary workflow end-to-end.
 4. Record the commit SHA used for the run.
