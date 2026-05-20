@@ -1,0 +1,1006 @@
+"""
+validate_pool.py  —  Companion pool validator for the junai resource pool.
+
+Complements validate_agents.py (which checks agent-file structure). This validator
+checks the broader pool: registry consistency, gate consistency, public-resource
+privacy scan, generated-artifact scan, prompt frontmatter, skill registry drift,
+and golden-plan quality.
+
+Exit codes:
+  0  all checks passed
+  1  one or more checks failed
+
+Usage:
+  python validate_pool.py
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import cast
+
+import yaml
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+
+REPO_ROOT = Path(__file__).resolve().parent
+GITHUB_DIR = REPO_ROOT / ".github"
+AGENTS_DIR = GITHUB_DIR / "agents"
+PROMPTS_DIR = GITHUB_DIR / "prompts"
+SKILLS_DIR = GITHUB_DIR / "skills"
+SKILLS_REGISTRY = SKILLS_DIR / "_registry.md"
+RUNTIME_TARGETS = GITHUB_DIR / "runtime-targets.json"
+DIST_RUNTIME_ROOT = REPO_ROOT / "dist" / "runtime-resources"
+PIPELINE_RUNNER_DIR = GITHUB_DIR / "tools" / "pipeline-runner"
+REGISTRY_PATH = PIPELINE_RUNNER_DIR / "agents.registry.json"
+PIPELINE_RUNNER_PY = PIPELINE_RUNNER_DIR / "pipeline_runner.py"
+STATE_TEMPLATE = GITHUB_DIR / "pipeline-state.template.json"
+GOLDEN_PLAN_SKILL = SKILLS_DIR / "workflow" / "golden-plan" / "SKILL.md"
+DENYLIST_EXCEPTIONS = GITHUB_DIR / "tools" / "pool-validator" / "denylist-exceptions.txt"
+DOC_FRONTMATTER_INSTRUCTION = GITHUB_DIR / "instructions" / "document-frontmatter.instructions.md"
+DOC_FRONTMATTER_REQUIRED_FIELDS = [
+    "Original Author",
+    "Creation Date",
+    "Creating Model",
+    "Last Author",
+    "Last Updated",
+    "Last Model Used",
+]
+DOC_FRONTMATTER_REFERENCERS = [
+    GITHUB_DIR / "instructions" / "plan-mode.instructions.md",
+    GITHUB_DIR / "skills" / "docs" / "code-documentation" / "SKILL.md",
+    GITHUB_DIR / "skills" / "docs" / "technical-writing" / "SKILL.md",
+    GITHUB_DIR / "skills" / "docs" / "writing-plans" / "SKILL.md",
+    GITHUB_DIR / "skills" / "docs" / "architecture-document" / "SKILL.md",
+    GITHUB_DIR / "skills" / "docs" / "doc-coauthoring" / "SKILL.md",
+    GITHUB_DIR / "skills" / "workflow" / "brainstorming" / "SKILL.md",
+    GITHUB_DIR / "skills" / "workflow" / "context-handoff" / "SKILL.md",
+    GITHUB_DIR / "skills" / "workflow" / "golden-plan" / "SKILL.md",
+    GITHUB_DIR / "skills" / "workflow" / "intent-writer" / "SKILL.md",
+    GITHUB_DIR / "skills" / "workflow" / "preflight" / "SKILL.md",
+    GITHUB_DIR / "prompts" / "plan.prompt.md",
+    GITHUB_DIR / "prompts" / "adr.prompt.md",
+    GITHUB_DIR / "prompts" / "documentation-writer.prompt.md",
+    GITHUB_DIR / "prompts" / "api-documentation.prompt.md",
+    GITHUB_DIR / "prompts" / "context-handoff.prompt.md",
+    GITHUB_DIR / "prompts" / "create-readme.prompt.md",
+    GITHUB_DIR / "prompts" / "generate-hld-lld.prompt.md",
+    GITHUB_DIR / "prompts" / "new-feature.prompt.md",
+    GITHUB_DIR / "prompts" / "project-setup.prompt.md",
+]
+
+# External pool roots that are checked when present
+EXTRA_POOL_ROOTS = [
+    REPO_ROOT / "dist" / "runtime-resources",
+    Path(r"E:\Projects\junai-vscode\pool"),
+    Path(r"E:\Projects\junai\.github"),
+]
+
+# Models allowed in prompt frontmatter (matches validate_agents.KNOWN_MODELS)
+KNOWN_MODELS = {
+    "Claude Opus 4.6",
+    "Claude Sonnet 4.6",
+    "Gemini 3.1 Pro (Preview)",
+    "GPT-5.3-Codex",
+}
+
+# Privacy denylist — case-insensitive substring matches
+PRIVACY_SUBSTRINGS = [
+    "git.local",
+    "vmie-admin",
+    "vmie-",
+    "***REDACTED-CRED***",
+    "***REDACTED-HASH***",
+    "@vmie.local",
+    r"\\vmie",
+]
+
+# Privacy denylist — regex matches
+PRIVACY_REGEXES = [
+    re.compile(r"\b[a-f0-9]{40}\b"),
+    re.compile(r"(?i)(password|token|api[_-]?key)\s*[:=]\s*['\"][^'\"]{8,}"),
+]
+
+# Generated artifacts forbidden under distributable resource folders
+GENERATED_ARTIFACTS = {
+    ".mypy_cache",
+    ".pytest_cache",
+    "__pycache__",
+    ".coverage",
+    "htmlcov",
+    ".ruff_cache",
+}
+
+# File extensions to scan for privacy violations
+SCAN_TEXT_EXTENSIONS = {".md", ".py", ".json", ".yml", ".yaml", ".txt", ".js", ".ts", ".tsx", ".jsx"}
+
+
+# ---------------------------------------------------------------------------
+# Result accumulation
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CheckResult:
+    name: str
+    passed: bool = True
+    failures: list[str] = field(default_factory=list)
+    info: list[str] = field(default_factory=list)
+
+
+def _print_check(result: CheckResult) -> None:
+    status = "[OK]  " if result.passed else "[FAIL]"
+    print(f"{status} {result.name}")
+    for line in result.info:
+        print(f"        {line}")
+    for line in result.failures:
+        print(f"        - {line}")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _load_path_allowlist() -> list[str]:
+    """Load path-substring allowlist (one pattern per line). Patterns match against
+    both forward-slash and backslash forms of the file path."""
+    if not DENYLIST_EXCEPTIONS.exists():
+        return []
+    out: list[str] = []
+    for line in DENYLIST_EXCEPTIONS.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if s and not s.startswith("#"):
+            out.append(s)
+    return out
+
+
+def _is_allowlisted(path: Path, allowlist: list[str]) -> bool:
+    if not allowlist:
+        return False
+    forward = str(path).replace("\\", "/")
+    back = str(path).replace("/", "\\")
+    for pat in allowlist:
+        norm = pat.replace("\\", "/")
+        if norm in forward or pat in back:
+            return True
+    return False
+
+
+def _read_text_safe(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def _split_frontmatter(text: str) -> tuple[dict, str] | None:
+    # Tolerate VS Code prompt-file convention where frontmatter is wrapped
+    # in a ```prompt ... ``` code fence.
+    stripped = text.lstrip()
+    if stripped.startswith("```"):
+        nl = stripped.find("\n")
+        if nl != -1:
+            stripped = stripped[nl + 1 :]
+    if not stripped.startswith("---"):
+        return None
+    try:
+        end = stripped.index("\n---", 3)
+    except ValueError:
+        return None
+    fm_text = stripped[3:end].lstrip("\n")
+    body = stripped[end + 4 :]
+    try:
+        meta = yaml.safe_load(fm_text) or {}
+    except yaml.YAMLError:
+        return None
+    if not isinstance(meta, dict):
+        return None
+    return meta, body
+
+
+# ---------------------------------------------------------------------------
+# Check 1 — Registry agent_file resolution + transition uniqueness
+# ---------------------------------------------------------------------------
+
+def check_registry() -> CheckResult:
+    r = CheckResult(name="Registry — agents, transitions, stages")
+    if not REGISTRY_PATH.exists():
+        r.passed = False
+        r.failures.append(f"Missing registry: {REGISTRY_PATH}")
+        return r
+
+    try:
+        data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.passed = False
+        r.failures.append(f"Invalid JSON in {REGISTRY_PATH}: {exc}")
+        return r
+
+    stages = data.get("stages", {})
+    transitions = data.get("transitions", [])
+
+    # 1a — agent_file resolves under .github/
+    for stage_name, info in stages.items():
+        agent_file = info.get("agent_file")
+        if agent_file is None:
+            continue
+        path = GITHUB_DIR / agent_file
+        if not path.is_file():
+            r.failures.append(
+                f"stage '{stage_name}' agent_file does not exist: {agent_file}"
+            )
+
+    # 1b — transition IDs unique
+    ids = [t.get("id") for t in transitions]
+    seen: set[str] = set()
+    for tid in ids:
+        if tid in seen:
+            r.failures.append(f"Duplicate transition id: {tid}")
+        seen.add(tid)
+
+    # 1c — from/to stages known or wildcard
+    known_stages = set(stages.keys())
+    wildcards = {"*"}
+    for t in transitions:
+        for key in ("from_stage", "to_stage"):
+            val = t.get(key)
+            if val is None:
+                continue
+            if val in known_stages or val in wildcards:
+                continue
+            r.failures.append(
+                f"transition {t.get('id')}: {key}='{val}' is not a known stage and not '*'"
+            )
+
+    r.info.append(f"stages: {len(stages)}, transitions: {len(transitions)}")
+    r.passed = not r.failures
+    return r
+
+
+def check_dependency_closure_profile(profile: str, profile_root: Path) -> CheckResult:
+    r = CheckResult(name=f"Dependency closure — profile '{profile}'")
+    registry_path = profile_root / "tools" / "pipeline-runner" / "agents.registry.json"
+    if not registry_path.exists():
+        r.passed = False
+        r.failures.append(f"Missing registry: {registry_path}")
+        return r
+
+    try:
+        data = json.loads(registry_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.passed = False
+        r.failures.append(f"Invalid registry JSON: {exc}")
+        return r
+
+    missing = 0
+    for stage_name, info in (data.get("stages") or {}).items():
+        agent_file = info.get("agent_file")
+        if not agent_file:
+            continue
+        resolved = profile_root / agent_file
+        if not resolved.is_file():
+            missing += 1
+            r.failures.append(f"stage '{stage_name}' missing agent_file: {agent_file}")
+
+    r.info.append(f"checked {len((data.get('stages') or {}))} stages")
+    r.info.append(f"missing agent files: {missing}")
+    r.passed = not r.failures
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Check 2 — Gate consistency: registry vs schema vs runner allowlist
+# ---------------------------------------------------------------------------
+
+def _registry_gates() -> set[str]:
+    if not REGISTRY_PATH.exists():
+        return set()
+    data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    return {t["gate"] for t in data.get("transitions", []) if t.get("gate")}
+
+
+def _schema_gates() -> set[str]:
+    if not STATE_TEMPLATE.exists():
+        return set()
+    data = json.loads(STATE_TEMPLATE.read_text(encoding="utf-8"))
+    return set((data.get("supervision_gates") or {}).keys())
+
+
+def _runner_allowlist() -> set[str] | None:
+    """Import pipeline_runner and return its ALLOWED_SUPERVISION_GATES."""
+    if not PIPELINE_RUNNER_PY.exists():
+        return None
+    runner_dir = str(PIPELINE_RUNNER_DIR)
+    inserted = runner_dir not in sys.path
+    if inserted:
+        sys.path.insert(0, runner_dir)
+    try:
+        # Force-reload to pick up edits between runs
+        import importlib
+
+        if "pipeline_runner" in sys.modules:
+            mod = importlib.reload(sys.modules["pipeline_runner"])
+        else:
+            mod = importlib.import_module("pipeline_runner")
+        return set(getattr(mod, "ALLOWED_SUPERVISION_GATES", set()))
+    except Exception as exc:  # noqa: BLE001
+        print(f"        (warning) could not import pipeline_runner: {exc}")
+        return None
+    finally:
+        if inserted:
+            try:
+                sys.path.remove(runner_dir)
+            except ValueError:
+                pass
+
+
+def check_gate_consistency() -> CheckResult:
+    r = CheckResult(name="Gate consistency — registry vs schema vs runner")
+    reg = _registry_gates()
+    sch = _schema_gates()
+    allow = _runner_allowlist()
+
+    if allow is None:
+        r.passed = False
+        r.failures.append("Could not load ALLOWED_SUPERVISION_GATES from pipeline_runner.py")
+        return r
+
+    # Every registry gate must be in runner allowlist
+    missing_in_runner = reg - allow
+    for g in sorted(missing_in_runner):
+        r.failures.append(f"Gate '{g}' used in registry transitions but not in runner allowlist")
+
+    # Every schema gate must be in runner allowlist (and vice versa)
+    if sch - allow:
+        for g in sorted(sch - allow):
+            r.failures.append(f"Gate '{g}' in pipeline-state.template.json but not in runner allowlist")
+    if allow - sch - reg:
+        for g in sorted(allow - sch - reg):
+            r.failures.append(
+                f"Gate '{g}' in runner allowlist but neither in schema nor in any registry transition"
+            )
+
+    r.info.append(f"registry={sorted(reg)}")
+    r.info.append(f"schema={sorted(sch)}")
+    r.info.append(f"runner={sorted(allow)}")
+    r.passed = not r.failures
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Check 3 — Public-resource privacy scan
+# ---------------------------------------------------------------------------
+
+def _scan_text_for_privacy(text: str) -> list[str]:
+    hits: list[str] = []
+    lower = text.lower()
+    for needle in PRIVACY_SUBSTRINGS:
+        if needle.lower() in lower:
+            hits.append(f"substring match: {needle!r}")
+    for rx in PRIVACY_REGEXES:
+        for m in rx.finditer(text):
+            sample = m.group(0)
+            hits.append(f"regex {rx.pattern!r} matched: {sample!r}")
+    return hits
+
+
+def _iter_pool_files(root: Path) -> list[Path]:
+    out: list[Path] = []
+    if not root.exists():
+        return out
+    for p in root.rglob("*"):
+        if not p.is_file():
+            continue
+        # Skip vmie/ folder — private by design
+        try:
+            rel_parts = p.relative_to(root).parts
+        except ValueError:
+            rel_parts = p.parts
+        if "vmie" in rel_parts:
+            continue
+        # Skip .github/plans/ — planning artefacts are intentionally source-only,
+        # not distributable pool content.
+        if root == GITHUB_DIR and "plans" in rel_parts:
+            continue
+        if any(part in GENERATED_ARTIFACTS for part in rel_parts):
+            continue
+        if p.suffix.lower() in SCAN_TEXT_EXTENSIONS:
+            out.append(p)
+    return out
+
+
+def check_privacy_scan(roots: list[Path]) -> CheckResult:
+    r = CheckResult(name="Privacy scan — public resource folders")
+    allowlist = _load_path_allowlist()
+
+    total_files = 0
+    skipped = 0
+    for root in roots:
+        for f in _iter_pool_files(root):
+            total_files += 1
+            if _is_allowlisted(f, allowlist):
+                skipped += 1
+                continue
+            if f.resolve() == DENYLIST_EXCEPTIONS.resolve():
+                continue
+            if f.resolve() == Path(__file__).resolve():
+                continue
+            text = _read_text_safe(f)
+            if text is None:
+                continue
+            hits = _scan_text_for_privacy(text)
+            if hits:
+                rel = f.relative_to(REPO_ROOT) if REPO_ROOT in f.parents else f
+                for h in hits:
+                    r.failures.append(f"{rel}: {h}")
+
+    r.info.append(f"scanned {total_files} files across {len(roots)} root(s)")
+    if allowlist:
+        r.info.append(f"loaded {len(allowlist)} allowlist pattern(s); skipped {skipped} file(s)")
+    r.passed = not r.failures
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Check 4 — Generated artifacts under distributable folders
+# ---------------------------------------------------------------------------
+
+def check_generated_artifacts(roots: list[Path]) -> CheckResult:
+    """Flag generated artifacts only in distributable roots (dist/, external mirrors).
+    The source `.github/` folder is excluded — these caches are local build artefacts,
+    are gitignored, and never reach the pool."""
+    r = CheckResult(name="Generated artifacts — must not appear in distributable pool")
+    distributable = [p for p in roots if p != GITHUB_DIR]
+    if not distributable:
+        r.info.append("(skipped — no distributable roots in scope; rerun with --include-dist or --include-external)")
+        return r
+    for root in distributable:
+        for p in root.rglob("*"):
+            if p.name in GENERATED_ARTIFACTS:
+                r.failures.append(f"{p}")
+    r.passed = not r.failures
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Check 5 — Prompt frontmatter validation
+# ---------------------------------------------------------------------------
+
+def check_prompts() -> CheckResult:
+    r = CheckResult(name="Prompts — frontmatter & model allowlist")
+    if not PROMPTS_DIR.exists():
+        r.passed = True
+        r.info.append("(no prompts directory)")
+        return r
+
+    count = 0
+    for p in sorted(PROMPTS_DIR.glob("*.prompt.md")):
+        count += 1
+        text = _read_text_safe(p)
+        if text is None:
+            r.failures.append(f"{p.name}: cannot read")
+            continue
+        parsed = _split_frontmatter(text)
+        if parsed is None:
+            r.failures.append(f"{p.name}: missing or invalid YAML frontmatter")
+            continue
+        meta, _ = parsed
+        if not str(meta.get("description", "")).strip():
+            r.failures.append(f"{p.name}: missing 'description' in frontmatter")
+        model = meta.get("model")
+        if model and model not in KNOWN_MODELS:
+            r.failures.append(f"{p.name}: model '{model}' not in KNOWN_MODELS")
+
+    r.info.append(f"validated {count} prompt file(s)")
+    r.passed = not r.failures
+    return r
+
+
+def check_prompts_in_dir(prompts_dir: Path, label: str) -> CheckResult:
+    r = CheckResult(name=f"Prompts — frontmatter ({label})")
+    if not prompts_dir.exists():
+        r.passed = True
+        r.info.append("(no prompts directory)")
+        return r
+
+    count = 0
+    for p in sorted(prompts_dir.glob("*.prompt.md")):
+        count += 1
+        text = _read_text_safe(p)
+        if text is None:
+            r.failures.append(f"{p.name}: cannot read")
+            continue
+        parsed = _split_frontmatter(text)
+        if parsed is None:
+            r.failures.append(f"{p.name}: missing or invalid YAML frontmatter")
+            continue
+        meta, _ = parsed
+        if not str(meta.get("description", "")).strip():
+            r.failures.append(f"{p.name}: missing 'description' in frontmatter")
+        model = meta.get("model")
+        if model and model not in KNOWN_MODELS:
+            r.failures.append(f"{p.name}: model '{model}' not in KNOWN_MODELS")
+
+    r.info.append(f"validated {count} prompt file(s)")
+    r.passed = not r.failures
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Check 6 — Skill registry drift vs disk
+# ---------------------------------------------------------------------------
+
+def _disk_public_skills() -> set[str]:
+    """Return set of '<category>/<skill>/' paths present on disk, excluding vmie."""
+    out: set[str] = set()
+    if not SKILLS_DIR.exists():
+        return out
+    for skill_md in SKILLS_DIR.rglob("SKILL.md"):
+        rel = skill_md.relative_to(SKILLS_DIR).parts
+        if not rel:
+            continue
+        # Ignore vmie/* entirely
+        if rel[0] == "vmie" or "vmie" in rel:
+            continue
+        if len(rel) < 2:
+            # SKILL.md directly under skills/ — not a categorized public skill
+            continue
+        # Rejoin everything except trailing SKILL.md
+        path = "/".join(rel[:-1]) + "/"
+        out.add(path)
+    return out
+
+
+def _disk_public_skills_from_dir(skills_dir: Path) -> set[str]:
+    """Return set of '<category>/<skill>/' paths present on disk, excluding vmie."""
+    out: set[str] = set()
+    if not skills_dir.exists():
+        return out
+    for skill_md in skills_dir.rglob("SKILL.md"):
+        rel = skill_md.relative_to(skills_dir).parts
+        if not rel:
+            continue
+        if rel[0] == "vmie" or "vmie" in rel:
+            continue
+        if len(rel) < 2:
+            continue
+        out.add("/".join(rel[:-1]) + "/")
+    return out
+
+
+def _registry_listed_skills() -> set[str]:
+    if not SKILLS_REGISTRY.exists():
+        return set()
+    text = SKILLS_REGISTRY.read_text(encoding="utf-8")
+    # Match `cat/skill/` or `cat/sub/skill/` paths inside backticks. Path segments
+    # are lowercase alphanumeric with hyphens/underscores, two or more segments.
+    pattern = re.compile(r"`((?:[a-z0-9_\-]+/){2,}[a-z0-9_\-]+/)`")
+    found = set(pattern.findall(text))
+    # Also accept exact two-segment form
+    pattern2 = re.compile(r"`([a-z0-9_\-]+/[a-z0-9_\-]+/)`")
+    found |= set(pattern2.findall(text))
+    return found
+
+
+def _registry_listed_skills_from_file(registry_file: Path) -> set[str]:
+    if not registry_file.exists():
+        return set()
+    text = registry_file.read_text(encoding="utf-8")
+    pattern = re.compile(r"`((?:[a-z0-9_\-]+/){2,}[a-z0-9_\-]+/)`")
+    found = set(pattern.findall(text))
+    pattern2 = re.compile(r"`([a-z0-9_\-]+/[a-z0-9_\-]+/)`")
+    found |= set(pattern2.findall(text))
+    return found
+
+
+def check_skill_registry() -> CheckResult:
+    r = CheckResult(name="Skill registry — _registry.md vs disk")
+    disk = _disk_public_skills()
+    listed = _registry_listed_skills()
+
+    missing_in_registry = disk - listed
+    extra_in_registry = listed - disk
+    for s in sorted(missing_in_registry):
+        r.failures.append(f"Skill on disk but not in _registry.md: {s}")
+    for s in sorted(extra_in_registry):
+        r.failures.append(f"Skill listed in _registry.md but not on disk: {s}")
+
+    r.info.append(f"disk={len(disk)} listed={len(listed)}")
+    r.passed = not r.failures
+    return r
+
+
+def check_skill_registry_in_dir(skills_dir: Path, label: str) -> CheckResult:
+    r = CheckResult(name=f"Skill registry — _registry.md vs disk ({label})")
+    disk = _disk_public_skills_from_dir(skills_dir)
+    listed = _registry_listed_skills_from_file(skills_dir / "_registry.md")
+
+    missing_in_registry = disk - listed
+    for s in sorted(missing_in_registry):
+        r.failures.append(f"Skill on disk but not in _registry.md: {s}")
+    extra_in_registry = listed - disk
+    if extra_in_registry:
+        r.info.append(f"extra registry-only entries (allowed in profile mode): {len(extra_in_registry)}")
+
+    r.info.append(f"disk={len(disk)} listed={len(listed)}")
+    r.passed = not r.failures
+    return r
+
+
+def _load_manifest_target(profile: str) -> dict | None:
+    if not RUNTIME_TARGETS.exists():
+        return None
+    try:
+        data = json.loads(RUNTIME_TARGETS.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    for target in data.get("targets", []):
+        if target.get("name") == profile:
+            return target
+    return None
+
+
+def check_profile_manifest_alignment(profile: str, profile_root: Path) -> CheckResult:
+    r = CheckResult(name=f"Profile manifest alignment — {profile}")
+    target = _load_manifest_target(profile)
+    if target is None:
+        r.passed = False
+        r.failures.append(f"Profile '{profile}' not found in runtime-targets.json")
+        return r
+
+    for copy_spec in target.get("copies", []):
+        excluded = set(copy_spec.get("excluded_names", []))
+        included = set(copy_spec.get("included_names", []))
+        if not excluded:
+            destination = profile_root / copy_spec.get("destination", "")
+        else:
+            destination = profile_root / copy_spec.get("destination", "")
+        if not destination.exists():
+            continue
+        if included:
+            top_level_names = {child.name for child in destination.iterdir()}
+            unexpected = top_level_names - included
+            for name in sorted(unexpected):
+                r.failures.append(
+                    f"Unexpected entry leaked into profile: {copy_spec.get('destination')}/{name}"
+                )
+        if not excluded:
+            continue
+        for name in excluded:
+            if (destination / name).exists():
+                r.failures.append(
+                    f"Excluded entry leaked into profile: {copy_spec.get('destination')}/{name}"
+                )
+
+    r.passed = not r.failures
+    return r
+
+
+def check_ptarmigan_content_restrictions(profile_root: Path) -> CheckResult:
+    r = CheckResult(name="Ptarmigan ADLC restrictions — exact 6-agent roster and forbidden resources")
+
+    # --- Agent roster: exactly these 6 ---
+    required_agents = {
+        "orchestrator.agent.md",
+        "planner.agent.md",
+        "preflight.agent.md",
+        "implement.agent.md",
+        "tester.agent.md",
+        "code-reviewer.agent.md",
+    }
+    agents_dir = profile_root / "agents"
+    if agents_dir.exists():
+        present = {f.name for f in agents_dir.glob("*.agent.md")}
+        for expected in sorted(required_agents):
+            if expected not in present:
+                r.failures.append(f"Ptarmigan ADLC agent missing: {expected}")
+            for extra in sorted(present - required_agents):
+                r.failures.append(f"Ptarmigan ADLC unexpected agent present: {extra}")
+        r.info.append(f"agent files present: {len(present)}, required: {len(required_agents)}")
+    else:
+        r.failures.append("agents/ directory missing from Ptarmigan profile")
+
+    # --- Forbidden stack-specific resources ---
+    forbidden_paths = [
+        profile_root / "instructions" / "streamlit.instructions.md",
+        profile_root / "instructions" / "sql.instructions.md",
+        profile_root / "instructions" / "sql-stored-procedures.instructions.md",
+        profile_root / "instructions" / "mssql-dba.instructions.md",
+        profile_root / "instructions" / "docker.instructions.md",
+        profile_root / "instructions" / "github-actions.instructions.md",
+        profile_root / "skills" / "coding" / "sql",
+        profile_root / "skills" / "data",
+        profile_root / "skills" / "cloud",
+        profile_root / "skills" / "frontend" / "streamlit-dev",
+        profile_root / "skills" / "frontend" / "streamlit-animate",
+    ]
+    checked = 0
+    for forbidden in forbidden_paths:
+        checked += 1
+        if forbidden.exists():
+            rel = forbidden.relative_to(profile_root)
+            r.failures.append(f"Forbidden Ptarmigan resource present: {rel}")
+    r.info.append(f"checked {checked} forbidden resources")
+    r.passed = not r.failures
+    return r
+
+
+def check_liffey_content_restrictions(profile_root: Path) -> CheckResult:
+    r = CheckResult(name="Liffey ADLC restrictions — exact 8-agent roster and forbidden resources")
+
+    # --- Agent roster: exactly these 8 ---
+    required_agents = {
+        "orchestrator.agent.md",
+        "prd.agent.md",
+        "architect.agent.md",
+        "planner.agent.md",
+        "implement.agent.md",
+        "tester.agent.md",
+        "code-reviewer.agent.md",
+        "devops.agent.md",
+    }
+    agents_dir = profile_root / "agents"
+    if agents_dir.exists():
+        present = {f.name for f in agents_dir.glob("*.agent.md")}
+        for expected in sorted(required_agents):
+            if expected not in present:
+                r.failures.append(f"Liffey ADLC agent missing: {expected}")
+        for extra in sorted(present - required_agents):
+            r.failures.append(f"Liffey ADLC unexpected agent present: {extra}")
+        r.info.append(f"agent files present: {len(present)}, required: {len(required_agents)}")
+    else:
+        r.failures.append("agents/ directory missing from Liffey profile")
+
+    # --- Forbidden resources (stack-specific ones not in Liffey roster) ---
+    forbidden_paths = [
+        profile_root / "instructions" / "streamlit.instructions.md",
+        profile_root / "instructions" / "sql.instructions.md",
+        profile_root / "instructions" / "sql-stored-procedures.instructions.md",
+        profile_root / "instructions" / "mssql-dba.instructions.md",
+        profile_root / "skills" / "coding" / "sql",
+        profile_root / "skills" / "cloud",
+        profile_root / "skills" / "frontend" / "streamlit-dev",
+        profile_root / "skills" / "frontend" / "streamlit-animate",
+    ]
+    checked = 0
+    for forbidden in forbidden_paths:
+        checked += 1
+        if forbidden.exists():
+            rel = forbidden.relative_to(profile_root)
+            r.failures.append(f"Forbidden Liffey resource present: {rel}")
+    r.info.append(f"checked {checked} forbidden resources")
+    r.passed = not r.failures
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Check 7 — Golden-plan quality
+# ---------------------------------------------------------------------------
+
+def check_golden_plan() -> CheckResult:
+    r = CheckResult(name="Golden-plan SKILL.md — fence contract & self-sweep")
+    if not GOLDEN_PLAN_SKILL.exists():
+        r.passed = False
+        r.failures.append(f"Missing: {GOLDEN_PLAN_SKILL.relative_to(REPO_ROOT)}")
+        return r
+
+    text = GOLDEN_PLAN_SKILL.read_text(encoding="utf-8")
+
+    # Fence contract — Phase Prompt structure must reference loaded skills + instructions inside a fenced block
+    if "### Phase Prompt" not in text:
+        r.failures.append("Missing '### Phase Prompt' heading (fence contract section)")
+    if "SKILLS TO READ FIRST" not in text:
+        r.failures.append("Phase Prompt fence contract missing 'SKILLS TO READ FIRST' marker")
+    if "INSTRUCTIONS TO FOLLOW" not in text:
+        r.failures.append("Phase Prompt fence contract missing 'INSTRUCTIONS TO FOLLOW' marker")
+
+    # Self-sweep — Phase 3 heading + decay-signal regex examples
+    if "## Phase 3 — Self-Sweep" not in text and "Self-Sweep" not in text:
+        r.failures.append("Missing self-sweep section")
+    decay_signals = ["same pattern", "as above", "similar to", "etc"]
+    missing_signals = [s for s in decay_signals if s not in text]
+    if missing_signals:
+        r.failures.append(f"Self-sweep missing decay-signal examples: {missing_signals}")
+
+    r.passed = not r.failures
+    return r
+
+
+def check_document_frontmatter_contract() -> CheckResult:
+    r = CheckResult(name="Document frontmatter contract — instruction + doc generators")
+
+    if not DOC_FRONTMATTER_INSTRUCTION.exists():
+        r.passed = False
+        r.failures.append(
+            f"Missing: {DOC_FRONTMATTER_INSTRUCTION.relative_to(REPO_ROOT)}"
+        )
+        return r
+
+    instruction_text = _read_text_safe(DOC_FRONTMATTER_INSTRUCTION)
+    if instruction_text is None:
+        r.passed = False
+        r.failures.append(
+            f"Cannot read: {DOC_FRONTMATTER_INSTRUCTION.relative_to(REPO_ROOT)}"
+        )
+        return r
+
+    parsed = _split_frontmatter(instruction_text)
+    if parsed is None:
+        r.failures.append(
+            f"{DOC_FRONTMATTER_INSTRUCTION.relative_to(REPO_ROOT)}: missing or invalid YAML frontmatter"
+        )
+    else:
+        meta, _ = parsed
+        if str(meta.get("applyTo", "")).strip() != "**/*.md":
+            r.failures.append(
+                f"{DOC_FRONTMATTER_INSTRUCTION.relative_to(REPO_ROOT)}: applyTo must be '**/*.md'"
+            )
+
+    for field_name in DOC_FRONTMATTER_REQUIRED_FIELDS:
+        if field_name not in instruction_text:
+            r.failures.append(
+                f"{DOC_FRONTMATTER_INSTRUCTION.relative_to(REPO_ROOT)}: missing required field '{field_name}'"
+            )
+
+    for path in DOC_FRONTMATTER_REFERENCERS:
+        if not path.exists():
+            r.failures.append(f"Missing doc-generator template: {path.relative_to(REPO_ROOT)}")
+            continue
+        text = _read_text_safe(path)
+        if text is None:
+            r.failures.append(f"Cannot read doc-generator template: {path.relative_to(REPO_ROOT)}")
+            continue
+        if "document-frontmatter.instructions.md" not in text:
+            r.failures.append(
+                f"{path.relative_to(REPO_ROOT)}: missing reference to document-frontmatter.instructions.md"
+            )
+
+    r.info.append(f"checked {len(DOC_FRONTMATTER_REFERENCERS)} doc-generation template(s)")
+    r.passed = not r.failures
+    return r
+
+
+def check_document_frontmatter_contract_in_profile(profile_root: Path, label: str) -> CheckResult:
+    r = CheckResult(name=f"Document frontmatter contract — exported profile '{label}'")
+
+    instruction_path = profile_root / "instructions" / "document-frontmatter.instructions.md"
+    referenced_by: list[Path] = []
+
+    for folder_name in ("skills", "prompts", "instructions"):
+        folder = profile_root / folder_name
+        if not folder.exists():
+            continue
+        for path in folder.rglob("*.md"):
+            text = _read_text_safe(path)
+            if text is None:
+                continue
+            if "document-frontmatter.instructions.md" in text:
+                referenced_by.append(path)
+
+    if not referenced_by:
+        r.info.append("no exported files reference document-frontmatter.instructions.md")
+        return r
+
+    if not instruction_path.exists():
+        r.failures.append(
+            f"{instruction_path.relative_to(profile_root)} missing, but {len(referenced_by)} exported file(s) reference it"
+        )
+    else:
+        text = _read_text_safe(instruction_path)
+        if text is None:
+            r.failures.append(f"Cannot read: {instruction_path.relative_to(profile_root)}")
+        else:
+            for field_name in DOC_FRONTMATTER_REQUIRED_FIELDS:
+                if field_name not in text:
+                    r.failures.append(
+                        f"{instruction_path.relative_to(profile_root)}: missing required field '{field_name}'"
+                    )
+
+    r.info.append(f"exported files referencing contract: {len(referenced_by)}")
+    r.passed = not r.failures
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def _resolve_scan_roots(args: argparse.Namespace) -> list[Path]:
+    roots = [GITHUB_DIR]
+    if args.include_dist:
+        dist = REPO_ROOT / "dist" / "runtime-resources"
+        if dist.exists():
+            roots.append(dist)
+    if args.include_external:
+        for p in EXTRA_POOL_ROOTS:
+            if p == REPO_ROOT / "dist" / "runtime-resources":
+                continue
+            if p.exists():
+                roots.append(p)
+    return roots
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="junai pool validator")
+    parser.add_argument(
+        "--include-dist",
+        action="store_true",
+        help="Also scan dist/runtime-resources (post-export check).",
+    )
+    parser.add_argument(
+        "--include-external",
+        action="store_true",
+        help="Also scan junai-vscode/pool and junai/.github mirrors.",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=["ptarmigan", "liffey"],
+        help="Validate a specific exported profile under dist/runtime-resources/<profile>/.github.",
+    )
+    args = parser.parse_args(argv)
+
+    roots = _resolve_scan_roots(args)
+    profile_root: Path | None = None
+    if args.profile:
+        profile_root = DIST_RUNTIME_ROOT / args.profile / ".github"
+        profile_root_path: Path = cast(Path, profile_root)
+        roots = [profile_root_path]
+
+    print("=" * 70)
+    print("  validate_pool.py — junai pool validator")
+    print("=" * 70)
+    print(f"  scope: {[str(p) for p in roots]}")
+    print("-" * 70)
+
+    if args.profile:
+        if profile_root is None or not profile_root.exists():
+            print(f"[FAIL] Profile export not found: {profile_root}")
+            print("       Run export_runtime_resources.py for this profile first.")
+            return 1
+
+        results = [
+            check_dependency_closure_profile(args.profile, profile_root),
+            check_profile_manifest_alignment(args.profile, profile_root),
+            check_privacy_scan(roots),
+            check_generated_artifacts([profile_root.parent]),
+            check_prompts_in_dir(profile_root / "prompts", args.profile),
+            check_skill_registry_in_dir(profile_root / "skills", args.profile),
+            check_document_frontmatter_contract_in_profile(profile_root, args.profile),
+        ]
+        if args.profile == "ptarmigan":
+            results.append(check_ptarmigan_content_restrictions(profile_root))
+        elif args.profile == "liffey":
+            results.append(check_liffey_content_restrictions(profile_root))
+    else:
+        results = [
+            check_registry(),
+            check_gate_consistency(),
+            check_privacy_scan(roots),
+            check_generated_artifacts(roots),
+            check_prompts(),
+            check_skill_registry(),
+            check_document_frontmatter_contract(),
+            check_golden_plan(),
+        ]
+
+    for result in results:
+        _print_check(result)
+
+    failed = sum(1 for r in results if not r.passed)
+
+    print("-" * 70)
+    if failed:
+        print(f"[FAIL] {failed} check(s) failed.")
+        return 1
+    print("[OK] All pool checks passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
