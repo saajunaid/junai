@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "junai-mcp"
-version = "$repos = @('E:\Projects\agent-sandbox','E:\Projects\agent-sandbox\vscode-extensions\junai','E:\Projects\agent-sandbox\vscode-extensions\junai-vscode','E:\Projects\agent-sandbox\vscode-extensions\ptarmigan','E:\Projects\agent-sandbox\vscode-extensions\liffey'); foreach ($r in $repos) { Write-Host "=== $r ==="; Set-Location $r; git status --short | Select-Object -First 40; git log --oneline -n 2; Write-Host "" }"
+version = "0.2.5"
 description = "Agentic pipeline orchestration MCP server — manage pipeline state, modes, and supervision gates for AI-driven software development workflows."
 readme = "README.md"
 license = "MIT"
