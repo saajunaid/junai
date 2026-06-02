@@ -2,7 +2,7 @@
 name: Frontend Developer
 description: Expert frontend developer for HTML, CSS, and web standards
 tools: [read, search, edit, execute, web, problems, testFailure, changes, junai-mcp/*, context7/*]
-model: GPT-5.3-Codex
+model: GPT-5.4
 handoffs:
   - label: Return to Orchestrator
     agent: Orchestrator
@@ -67,6 +67,8 @@ If the user asks for a simple action on an already-open live page — for exampl
 - output a checklist, long investigation log, or status wrapper
 
 This shortcut overrides the usual `project-config.md`, skill-loading, and deep-investigation flow for simple live browser requests.
+
+**If the `web` tool is unavailable or fails after one retry:** Load `.github/skills/testing/webapp-testing/SKILL.md` or `.github/skills/testing/playwright/SKILL.md` and use Playwright instead. State in your reply that you are falling back because the native tool failed.
 
 **Example — required behavior:**
 If the user says: *"Use the already-open integrated browser page. Click 'Run smoke action' and report the visible status text. Do not inspect code or use Playwright unless browser tools fail."*
