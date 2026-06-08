@@ -343,15 +343,118 @@ def prune_registry(
     return original_count - len(pruned_stages)
 
 
+def write_plugin_manifests(bundle_root: Path, plugin_dir: Path, target: dict[str, Any]) -> None:
+    """Emit the plugin + marketplace manifests for a plugin-shaped target.
+
+    Two-level layout: `marketplace.json` lives at the bundle root (which becomes the host
+    repo root after publish), and the plugin itself — including `plugin.json` — lives in a
+    subdirectory (`plugin/`). The marketplace's `plugin_source` points at that subdir. This
+    is required because the host repo (junai) carries other content, so the plugin cannot
+    occupy the repo root with `source: "."`.
+    """
+    plugin = target.get("plugin")
+    if not plugin:
+        return
+    plugin_meta = plugin_dir / ".claude-plugin"
+    plugin_meta.mkdir(parents=True, exist_ok=True)
+    plugin_manifest = {k: v for k, v in plugin.items() if v not in (None, "", [], {})}
+    (plugin_meta / "plugin.json").write_text(
+        json.dumps(plugin_manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    mkt = target.get("marketplace")
+    if mkt:
+        mkt_meta = bundle_root / ".claude-plugin"
+        mkt_meta.mkdir(parents=True, exist_ok=True)
+        marketplace_manifest: dict[str, Any] = {"name": mkt["name"], "owner": mkt["owner"]}
+        if mkt.get("description"):
+            marketplace_manifest["description"] = mkt["description"]
+        marketplace_manifest["plugins"] = [
+            {
+                "name": plugin["name"],
+                "source": mkt.get("plugin_source", "./plugin"),
+                "description": plugin.get("description", ""),
+            }
+        ]
+        (mkt_meta / "marketplace.json").write_text(
+            json.dumps(marketplace_manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+
+
+def write_bundle_registry(skills_dir: Path) -> int:
+    """Regenerate _registry.md from the skills actually present in the bundle.
+
+    Self-contained (no pool manifest dependency) so the shipped subset's registry matches
+    what was exported, not the full 133-skill pool. Returns the number of rows written.
+    """
+    if not skills_dir.exists():
+        return 0
+    by_category: dict[str, list[tuple[str, str, str]]] = {}
+    for skill_md in sorted(skills_dir.rglob("SKILL.md")):
+        rel = skill_md.relative_to(skills_dir)
+        if len(rel.parts) < 2:
+            continue
+        category = rel.parts[0]
+        frontmatter, _ = split_frontmatter(skill_md.read_text(encoding="utf-8"))
+        data = extract_simple_frontmatter(frontmatter)
+        name = data.get("name", rel.parts[-2])
+        description = " ".join(data.get("description", "").split())
+        display = " ".join(w.capitalize() for w in name.replace("-", " ").split())
+        path = "/".join(rel.parts[:-1]) + "/"
+        by_category.setdefault(category, []).append((display, path, description))
+
+    lines = [
+        "# Skills Registry",
+        "",
+        "> Bundle skill inventory generated from `SKILL.md` frontmatter for the shipped subset.",
+        "> Load a skill by reading its `SKILL.md`.",
+        "",
+        "---",
+        "",
+        "## Skills by Category",
+        "",
+    ]
+    count = 0
+    for category in sorted(by_category):
+        lines.append(f"### {category.capitalize()}")
+        lines.append("")
+        lines.append("| Skill | Path | When to Use |")
+        lines.append("|-------|------|-------------|")
+        for display, path, description in sorted(by_category[category]):
+            lines.append(f"| {display} | `{path}` | {description} |")
+            count += 1
+        lines.append("")
+    (skills_dir / "_registry.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return count
+
+
 def export_target(manifest: dict[str, Any], target: dict[str, Any]) -> ExportStats:
     """Export one runtime target from the canonical .github source."""
     canonical_root = PROJECT_ROOT / manifest["canonical_root"]
     output_root = PROJECT_ROOT / manifest["output_root"] / target["name"]
     workspace_root = output_root / target["workspace_root"]
     stats = ExportStats(profile=target["name"])
+    # extra_roots: a target may pull some copies/files from a second source root
+    # (e.g. the claude target sources agents/commands from `claude-harness/`, not `.github`).
+    extra_roots: dict[str, Path] = {
+        key: PROJECT_ROOT / rel for key, rel in target.get("extra_roots", {}).items()
+    }
+
+    def _base_root(spec: dict[str, Any]) -> Path:
+        root_key = spec.get("root")
+        if root_key:
+            if root_key not in extra_roots:
+                raise ValueError(
+                    f"{target['name']}: copy/file references unknown root '{root_key}'"
+                )
+            return extra_roots[root_key]
+        return canonical_root
     exclusion_cfg = manifest.get("exclusions", {})
-    skill_exclusions = set(exclusion_cfg.get("skills", []))
-    private_roots = set(exclusion_cfg.get("private_roots", []))
+    # A target may opt back into otherwise-private content (e.g. the personal `claude`
+    # bundle includes vmie; a future public plugin target omits it). include_private
+    # lifts the named items out of the global exclusions for THIS target only.
+    include_private = set(target.get("include_private", []))
+    skill_exclusions = set(exclusion_cfg.get("skills", [])) - include_private
+    private_roots = set(exclusion_cfg.get("private_roots", [])) - include_private
     private_paths = _normalize_paths(exclusion_cfg.get("private_paths", []))
 
     ensure_clean_dir(output_root)
@@ -362,7 +465,7 @@ def export_target(manifest: dict[str, Any], target: dict[str, Any]) -> ExportSta
             print(f"[SKIP] {target['name']}: copy '{source_rel}' is in exclusions")
             stats.bump_skip("private_path")
             continue
-        source = canonical_root / copy_spec["source"]
+        source = _base_root(copy_spec) / copy_spec["source"]
         destination = workspace_root / copy_spec["destination"]
         excluded_names: set[str] = set(private_roots)
         included_names: set[str] = set(copy_spec.get("included_names", []))
@@ -393,7 +496,7 @@ def export_target(manifest: dict[str, Any], target: dict[str, Any]) -> ExportSta
             print(f"[SKIP] {target['name']}: file '{source_rel}' is in exclusions")
             stats.bump_skip("private_path")
             continue
-        source = canonical_root / file_spec["source"]
+        source = _base_root(file_spec) / file_spec["source"]
         destination = workspace_root / file_spec["destination"]
         if not source.exists():
             stats.bump_skip("missing_source")
@@ -423,6 +526,14 @@ def export_target(manifest: dict[str, Any], target: dict[str, Any]) -> ExportSta
         if pruned:
             stats.bump_skip("registry_stages_pruned", pruned)
         _check_dependency_closure(workspace_root, stats)
+
+    # Plugin packaging (Phase 4): emit .claude-plugin manifests + a bundle-scoped skill registry.
+    # marketplace.json at the bundle root (output_root); plugin.json + content under workspace_root.
+    if target.get("plugin"):
+        write_plugin_manifests(output_root, workspace_root, target)
+        rows = write_bundle_registry(workspace_root / "skills")
+        if rows:
+            stats.bump_skip("registry_rows_written", rows)
 
     return stats
 
@@ -514,11 +625,16 @@ def main() -> int:
     output_root = PROJECT_ROOT / manifest["output_root"]
     leaks: list[str] = []
     target_names = {t["name"] for t in selected_targets}
+    include_private_by_target = {
+        t["name"]: set(t.get("include_private", [])) for t in selected_targets
+    }
     for path in output_root.rglob("*"):
         rel_parts = path.relative_to(output_root).parts
-        if rel_parts and rel_parts[0] not in target_names:
+        if not rel_parts or rel_parts[0] not in target_names:
             continue
-        if any(part in forbidden_names for part in rel_parts):
+        # a target that opted into private content is not "leaking" it
+        tgt_forbidden = forbidden_names - include_private_by_target.get(rel_parts[0], set())
+        if any(part in tgt_forbidden for part in rel_parts):
             leaks.append(str(path.relative_to(output_root)))
     if leaks:
         print(f"[FAIL] Private content leaked into export ({len(leaks)} paths):")
