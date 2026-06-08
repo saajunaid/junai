@@ -1,14 +1,14 @@
 {
-  "name": "junai",
+  "name": "claudster",
   "owner": {
     "name": "junaid"
   },
-  "description": "junai plugin marketplace",
+  "description": "claudster plugin marketplace",
   "plugins": [
     {
-      "name": "junai",
+      "name": "claudster",
       "source": "./plugin",
-      "description": "junai — agent-agnostic dev harness: lean subagents, TDD commands, tiered skills, and a CLAUDE.md generator."
+      "description": "claudster — agent-agnostic dev harness: lean subagents, TDD commands, tiered skills, and a CLAUDE.md generator."
     }
   ]
 }

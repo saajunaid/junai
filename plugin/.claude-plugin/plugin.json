@@ -1,6 +1,6 @@
 {
-  "name": "junai",
-  "description": "junai — agent-agnostic dev harness: lean subagents, TDD commands, tiered skills, and a CLAUDE.md generator.",
+  "name": "claudster",
+  "description": "claudster — agent-agnostic dev harness: lean subagents, TDD commands, tiered skills, and a CLAUDE.md generator.",
   "author": {
     "name": "junaid",
     "url": "https://github.com/saajunaid/junai"
