@@ -6,6 +6,42 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.1.0] — 2026-06-10
+
+### Fixed
+
+- **relay.md context bloat** — `inject_relay.py` now caps injected output at 120 lines. When the
+  file exceeds the cap, the Done section bullets are replaced with a one-line summary
+  (`[N bullets omitted — see git log]`). Next step, Read first on resume, Validation state, Open
+  questions, and Resume prompt are always preserved in full. Graceful degradation if sections are
+  unparseable.
+
+### Changed
+
+- **`/handoff` Done section cap** — Added a count-based pruning rule: the Done section must contain
+  at most 8 bullets after writing. Older bullets collapse to
+  `- [N prior milestones — see git log for full history]`. Complements the existing merge-based
+  prune rule. Target: relay.md stays under ~80 lines on disk.
+
+- **Output paths → `.claudster/`** — `/prd` now writes to `.claudster/prd/<slug>.md`; `/feature-plan`
+  writes to `.claudster/plans/<slug>.md`. Keeps agent output out of `.github/`, which is reserved for
+  GitHub Actions and pool infrastructure. Existing projects are unaffected until they re-run
+  `/setup-project-ai`.
+
+- **Document frontmatter** — All commands that produce deliverable Markdown (plans, PRDs, etc.) now
+  include an 8-field YAML provenance block:
+  `type`, `status`, `feature`, `creation-agent: claudster`,
+  `Original Author`, `Creation Date`, `Creating Model`
+  (plus `Last Author` / `Last Updated` / `Last Model Used` on update).
+  The rule is also baked into the CLAUDE.md template deployed by `/setup-project-ai`.
+
+### Added
+
+- **`claudster/` docs folder** — `CLAUDSTER.md` developer handbook, `CLAUDSTER-FLOW.svg` workflow
+  poster, and `CLAUDSTER-REFERENCE.svg` command/agent/skill reference poster added to the repo root.
+
+---
+
 ## [1.0.0] — 2026-06-09
 
 First semver release. Establishes baseline from the implicit `ab34a435430a` → `be44cc02b4c6` commit range.
