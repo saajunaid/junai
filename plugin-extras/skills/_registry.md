@@ -49,6 +49,7 @@
 |-------|------|-------------|
 | Changelog Generator | `changelog-generator/` | Automatically creates user-facing changelogs from git commits by analyzing commit history, categorizing changes, and transforming technical commits into clear, customer-friendly release notes. Turns hours of manual changelog writing into minutes of automated generation. |
 | Deploy Local | `deploy-local/` | End-to-end local deployment loop for VMIE Gitea projects. Use when the user wants to commit on dev, push to remote, monitor the golden CI/build/deploy workflow, validate prod on iegbcoppoc02, and fix lint/test/pipeline failures until deployment is healthy. |
+| Golden Workflow | `golden-workflow/` | Standardize VMIE Gitea workflows onto the Golden VMIE Workflow for the local shared-runner infra model. Use whenever an existing app has brittle tag-first deploy logic, split CI and deploy files, manual deploy drift, or runner-safe workflow issues, and also whenever a new repo must inherit the correct default CI/CD flow. Covers runner contract, canonical ci.yml, SHA-driven prod deploy on iegbcoppoc02, post-deploy CalVer tagging, bootstrap alignment, repo migration, and mandatory first-run execution plus validation. |
 | Monorepo | `monorepo/` | Monorepo management with Turborepo and pnpm workspaces. Use for Turborepo setup, turbo.json task dependencies, remote caching, pnpm workspace protocol, shared packages (ui-library, config, types), affected-only CI/CD builds, or monorepo structure (apps/ vs packages/). Covers pitfalls like circular deps, version drift, and hoisting issues. |
 | Update Readme | `update-readme/` | Detect feature commits and update README sections (Features, API, Usage) with accurate repo-aware changes, then stage only README for a docs commit. Use when users add features/routes/components and want README maintained automatically. |
 
@@ -61,6 +62,7 @@
 | Documentation Analyzer | `documentation-analyzer/` | Analyze codebases, explain code functionality, and generate comprehensive documentation. Use when documenting a project, creating README files, or understanding complex code. |
 | Naming Analyzer | `naming-analyzer/` | Suggest better variable, function, and class names based on context and conventions. |
 | Prd To Code | `prd-to-code/` | Transform PRD documents into working application code using a systematic 6-phase methodology. Use when starting projects from requirements or converting specs to implementation. |
+| Vm Ppt | `vm-ppt/` | Create executive PowerPoint presentations in the exact bundled Virgin Media Ireland VMIE Powerpoint Template format. Use this whenever a user asks for a VMIE, Virgin Media Ireland, CTIO, Liberty Global, board, senior stakeholder, architecture, roadmap, technical strategy, or executive presentation in PowerPoint; the skill requires using the bundled VMIE Powerpoint Template.pptx as the source of truth and preserving its layouts, theme colors, logos, fonts, headers, footers, slide masters, media, and placeholder styling rather than recreating them manually. |
 
 ### Frontend
 
@@ -129,13 +131,6 @@
 | Component Testing | `component-testing/` | React component testing with Vitest, Testing Library, MSW, and renderHook. Use for Vitest setup, jsdom/happy-dom config, Testing Library queries, userEvent, component unit tests, testing React hooks, MSW API mocking, snapshot testing, or testing loading/error states. Complements playwright (E2E) and tdd-workflow (methodology). |
 | Performance Testing | `performance-testing/` | Performance testing, load testing, and benchmarking for APIs, databases, and web applications. Use when planning load tests, setting performance budgets, profiling bottlenecks, or validating scalability. Covers Locust, k6, pytest-benchmark, browser performance, and database query profiling. |
 | Ui Testing | `ui-testing/` | Create automated UI tests using Playwright for Streamlit and web applications. Use when writing end-to-end tests, automating UI testing, or testing new features. |
-
-### Vmie
-
-| Skill | Path | When to Use |
-|-------|------|-------------|
-| Golden Workflow | `golden-workflow/` | Standardize VMIE Gitea workflows onto the Golden VMIE Workflow for the local shared-runner infra model. Use whenever an existing app has brittle tag-first deploy logic, split CI and deploy files, manual deploy drift, or runner-safe workflow issues, and also whenever a new repo must inherit the correct default CI/CD flow. Covers runner contract, canonical ci.yml, SHA-driven prod deploy on iegbcoppoc02, post-deploy CalVer tagging, bootstrap alignment, repo migration, and mandatory first-run execution plus validation. |
-| Windows Deployment | `windows-deployment/` | Windows deployment guidance for app services running under NSSM with reverse proxy support. |
 
 ### Workflow
 
