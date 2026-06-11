@@ -1,6 +1,6 @@
 {
   "name": "claudster",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "claudster — agent-agnostic dev harness: lean subagents, TDD commands, tiered skills, and a CLAUDE.md generator.",
   "author": {
     "name": "junaid",
