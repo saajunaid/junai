@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -459,12 +460,82 @@ def write_project_facts(target: Path, facts: dict, dry: bool) -> list[str]:
     out += sec("Environment variables (names only — values live in your real .env)", facts["env"])
     out += sec("CI / deploy workflows", facts["workflows"])
     out += sec("Entry points / key folders", facts["entry"])
-    dest = target / ".claude" / "PROJECT-FACTS.md"
+    dest = target / ".claudster" / "PROJECT-FACTS.md"
     if not dry:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text("\n".join(out), encoding="utf-8")
     n = sum(len(v) for v in facts.values())
-    return [f"project facts: wrote .claude/PROJECT-FACTS.md ({n} facts — fold into the hierarchy, then delete)"]
+    return [f"project facts: wrote .claudster/PROJECT-FACTS.md ({n} facts — fold into the hierarchy, then delete)"]
+
+
+CLAUDSTER_GITIGNORE = """\
+# claudster artifacts — commit plans/handoffs/agent-docs/prd; ignore transient state
+reviews/*.html
+usage-log.jsonl
+.last-usage-review
+relay.md
+relay/
+PROJECT-FACTS.md
+"""
+
+
+def scaffold_claudster(target: Path, dry: bool) -> list[str]:
+    """Create the harness-owned .claudster/ artifact tree + a default .gitignore.
+
+    Committed subdirs: plans, handoffs, agent-docs, prd. Transient state
+    (reviews/*.html, usage-log.jsonl, .last-usage-review, relay*, PROJECT-FACTS.md)
+    is gitignored. Idempotent; never clobbers an existing .gitignore.
+    """
+    notes: list[str] = []
+    root = target / ".claudster"
+    for sub in ("plans", "handoffs", "agent-docs", "reviews", "prd"):
+        d = root / sub
+        if d.is_dir():
+            continue
+        if not dry:
+            d.mkdir(parents=True, exist_ok=True)
+        notes.append(f"scaffold: .claudster/{sub}/")
+    gi = root / ".gitignore"
+    if gi.exists():
+        notes.append("scaffold: .claudster/.gitignore present — kept")
+    else:
+        if not dry:
+            root.mkdir(parents=True, exist_ok=True)
+            gi.write_text(CLAUDSTER_GITIGNORE, encoding="utf-8")
+        notes.append("scaffold: wrote .claudster/.gitignore")
+    return notes
+
+
+def relocate_legacy(target: Path, dry: bool) -> list[str]:
+    """One-way relocate of pre-.claudster harness files into .claudster/.
+
+    Moves each source only when it exists AND the destination does not — never
+    clobbers an already-migrated file (logs a skip instead). Idempotent: a second
+    run finds no sources and is a no-op. Excludes .github/plans/ on purpose — those
+    are pool-synced and the /handoff read shim covers legacy plans (migration decision 5).
+    """
+    moves = [
+        ("relay.md", ".claudster/relay.md"),
+        (".claude/usage-log.jsonl", ".claudster/usage-log.jsonl"),
+        (".claude/.last-usage-review", ".claudster/.last-usage-review"),
+        (".claude/PROJECT-FACTS.md", ".claudster/PROJECT-FACTS.md"),
+        (".claude/relay", ".claudster/relay"),
+    ]
+    notes: list[str] = []
+    for src_rel, dst_rel in moves:
+        src, dst = target / src_rel, target / dst_rel
+        if not src.exists():
+            continue
+        if dst.exists():
+            notes.append(f"migrate: skip (already at {dst_rel}) — left legacy {src_rel} in place")
+            continue
+        if not dry:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(src), str(dst))
+        notes.append(f"migrate: {src_rel} → {dst_rel}")
+    if not notes:
+        notes.append("migrate: no legacy files to relocate")
+    return notes
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -483,6 +554,9 @@ def main() -> int:
     ap.add_argument("--force", action="store_true", help="Overwrite existing CLAUDE.md/AGENTS.md/harness files")
     ap.add_argument("--install", action="store_true", help="Create venv if missing")
     ap.add_argument("--dry-run", action="store_true", help="Report actions without writing")
+    ap.add_argument("--vendor", action="store_true",
+                    help="Copy plugin-owned agents+commands into .claude/ (for raw checkouts without "
+                         "the claudster plugin installed; plugin installs load them globally — no copy needed)")
     args = ap.parse_args()
 
     target = args.target.resolve()
@@ -542,16 +616,27 @@ def main() -> int:
     for line in compose_claude_md(target, stack, ident, args.force, args.dry_run):
         print(f"   {line}")
 
+    print("-- migrate legacy state → .claudster")
+    for line in relocate_legacy(target, args.dry_run):
+        print(f"   {line}")
+
     print("-- project facts (auto-extracted → seed for enrichment)")
     for line in write_project_facts(target, extract_project_facts(target, stack), args.dry_run):
         print(f"   {line}")
 
-    print("\n-- subagents")
-    for line in deploy_dir(HARNESS_DIR / "agents", target / ".claude" / "agents", args.force, args.dry_run):
+    print("-- .claudster artifact tree")
+    for line in scaffold_claudster(target, args.dry_run):
         print(f"   {line}")
-    print("-- commands")
-    for line in deploy_dir(HARNESS_DIR / "commands", target / ".claude" / "commands", args.force, args.dry_run):
-        print(f"   {line}")
+
+    if args.vendor:
+        print("\n-- subagents (vendored)")
+        for line in deploy_dir(HARNESS_DIR / "agents", target / ".claude" / "agents", args.force, args.dry_run):
+            print(f"   {line}")
+        print("-- commands (vendored)")
+        for line in deploy_dir(HARNESS_DIR / "commands", target / ".claude" / "commands", args.force, args.dry_run):
+            print(f"   {line}")
+    else:
+        print("\n-- subagents/commands: skipped (provided by the claudster plugin; pass --vendor for a raw checkout)")
 
     print("\n-- settings")
     print(f"   {merge_settings(target, stack, args.dry_run)}")
