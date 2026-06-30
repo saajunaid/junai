@@ -317,6 +317,12 @@ if [ -f "package.json" ] && command -v npm >/dev/null 2>&1; then
   npm run 2>/dev/null | grep -q " typecheck" && { echo "[gate] npm run typecheck"; npm run typecheck --silent || fail=1; }
   npm run 2>/dev/null | grep -q " test"       && { echo "[gate] npm test"; npm test --silent || fail=1; }
 fi
+# Doc-coverage discipline (any stack). The checker exits non-zero ONLY on a hard invariant
+# (missing route / dangling doc-map link); soft signals warn without failing. Auto-skips when the
+# checker isn't present (older repos) or no python is on PATH. Probe python then python3 so the gate
+# isn't silently disabled on python3-only systems (common on Linux/CI). `|| true` keeps it set -e-safe.
+DOC_PY=$(command -v python || command -v python3 || true)
+[ -n "$DOC_PY" ] && [ -f "scripts/check_doc_coverage.py" ] && { echo "[gate] doc coverage"; "$DOC_PY" scripts/check_doc_coverage.py --check || fail=1; }
 if [ "$fail" -ne 0 ]; then
   echo "[claudster] push BLOCKED — fix the above, or 'git push --no-verify' to override." >&2
   exit 1
@@ -362,6 +368,51 @@ def deploy_statusline(target: Path, force: bool, dry: bool) -> list[str]:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
     return ["status line: wrote .claude/statusline-command.sh"]
+
+
+def emit_doc_discipline(target: Path, ident: dict[str, str], force: bool, dry: bool) -> list[str]:
+    """Scaffold the doc-coverage discipline into the target:
+      • `.claudster/kb/DOC-MAP.md` — reference-doc index (always);
+      • `UI_PAGE_GUIDE.md` — page→endpoints→DB stub (frontend repos only, i.e. a `frontend/` dir);
+      • copy `scripts/check_doc_coverage.py` into the target (mirrors deploy_statusline).
+    Idempotent: never clobbers an edited file unless --force. The scaffolded DOC-MAP carries no
+    `.md` links so a fresh repo is gate-clean (no dangling-link hard failure)."""
+    notes: list[str] = []
+    cm = HARNESS_DIR / "claude-md"
+    mapping = {"PROJECT_NAME": ident["name"], "PROJECT_DESCRIPTION": ident["desc"]}
+
+    def _emit(rel: str, tmpl: str, label: str):
+        src = cm / tmpl
+        if not src.is_file():
+            notes.append(f"{label}: template missing — skipped")
+            return
+        dest = target / rel
+        if dest.exists() and not force:
+            notes.append(f"{label}: {rel} present — kept")
+            return
+        if not dry:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(render(src.read_text(encoding="utf-8"), mapping),
+                            encoding="utf-8", newline="\n")
+        notes.append(f"{label}: wrote {rel}")
+
+    _emit(".claudster/kb/DOC-MAP.md", "doc-map.md.tmpl", "doc-map")
+    if (target / "frontend").exists():
+        _emit("UI_PAGE_GUIDE.md", "ui-page-guide.md.tmpl", "page guide")
+
+    # Copy the checker into the target's scripts/ (same pattern as deploy_statusline).
+    src = HARNESS_DIR / "scripts" / "check_doc_coverage.py"
+    dest = target / "scripts" / "check_doc_coverage.py"
+    if not src.is_file():
+        notes.append("doc-coverage checker: source missing — skipped")
+    elif dest.exists() and not force:
+        notes.append("doc-coverage checker: scripts/check_doc_coverage.py present — skipped")
+    else:
+        if not dry:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+        notes.append("doc-coverage checker: wrote scripts/check_doc_coverage.py")
+    return notes
 
 
 def extract_project_facts(target: Path, stack: dict) -> dict:
@@ -649,6 +700,10 @@ def main() -> int:
 
     print("-- .claudster artifact tree")
     for line in scaffold_claudster(target, args.dry_run):
+        print(f"   {line}")
+
+    print("-- doc-coverage discipline (DOC-MAP + page guide + checker)")
+    for line in emit_doc_discipline(target, ident, args.force, args.dry_run):
         print(f"   {line}")
 
     if args.vendor:
