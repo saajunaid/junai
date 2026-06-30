@@ -37,7 +37,6 @@
 | Gh Cli | `gh-cli/` | GitHub CLI operations — issues, PRs, releases, and repo management |
 | Git Commit | `git-commit/` | Create well-structured conventional commit messages following Conventional Commits standard. Use when committing changes, preparing PRs, or generating changelogs. |
 | Using Git Worktrees | `using-git-worktrees/` | Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification |
-| Windows Deployment | `windows-deployment/` | Deploy FastAPI + React/Vite apps to Windows Server with NSSM services, reverse proxy (IIS or nginx), and git-pull workflow. Use when deploying any web app to a Windows prod server, setting up NSSM services, configuring IIS or nginx reverse proxy, making code environment-aware for dev/prod, or troubleshooting prod deployment issues. |
 
 ### Docs
 
@@ -65,6 +64,7 @@
 |-------|------|-------------|
 | Draw Io | `draw-io/` | draw.io diagram creation, editing, and review. Use for .drawio XML editing, PNG conversion, layout adjustment, and AWS icon usage. |
 | Mermaid Diagrams | `mermaid-diagrams/` | Create software diagrams using Mermaid text-based syntax. Use for class diagrams (domain modeling, OOP design), sequence diagrams (API flows, interactions), flowcharts (processes, algorithms, user journeys), ERD (database schemas), C4 architecture diagrams, state diagrams, git graphs, gantt charts, and data visualization. |
+| Particle Art | `particle-art/` | Generate animated particle art React/Next.js components — zero dependencies, spring physics, CSS-variable theming, DPR-correct canvas, mouse interaction. Use when the user wants animated hero art, a living logo, a branded initial or monogram, a constellation background, or any "particles that form a shape". Triggers on "particle animation", "node network", "animated letter/logo/initials", "living letter", "morphing particles", "constellation", "neural net art", "dot field", "stipple portrait", "halftone animation", "ASCII art animation", "background art for my site", or "art that reacts to mouse". Covers — text/initials → spring-node letter; preset patterns (constellation, helix, spiral, DNA, hex-grid, wave, infinity); custom SVG paths; custom polygon points; Unicode halftone stipple; Gaussian dot field with sparks; SVG circuit traces; hybrid combos. Outputs a complete, self-contained, copy-paste-ready React component. Prefer this over p5.js (zero-dep, React-native, TypeScript), tsParticles (richer spring physics, CSS-var theming), Three.js (lightweight, no WebGL). |
 
 ### Testing
 
