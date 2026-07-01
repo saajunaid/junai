@@ -4,3 +4,5 @@
 {"ts": "2026-06-30T21:04:43+00:00", "session": "be84d123-4b0e-489b-830e-b27e31cf7c43", "input": 170289, "output": 649190, "cache_write": 2824152, "cache_read": 102614863, "est_cost_usd": 258.1187, "models": ["<synthetic>", "claude-opus-4-8"]}
 {"ts": "2026-06-30T21:13:35+00:00", "session": "be84d123-4b0e-489b-830e-b27e31cf7c43", "input": 170293, "output": 656364, "cache_write": 2824352, "cache_read": 103518097, "est_cost_usd": 260.0154, "models": ["<synthetic>", "claude-opus-4-8"]}
 {"ts": "2026-07-01T00:26:17+00:00", "session": "d9c33c72-4b46-446b-95f6-d77e173b422a", "input": 67163, "output": 220230, "cache_write": 602176, "cache_read": 22472000, "est_cost_usd": 62.5235, "models": ["claude-opus-4-8"]}
+{"ts": "2026-07-01T00:47:01+00:00", "session": "d9c33c72-4b46-446b-95f6-d77e173b422a", "input": 68017, "output": 260810, "cache_write": 642526, "cache_read": 31063282, "est_cost_usd": 79.2233, "models": ["claude-opus-4-8"]}
+{"ts": "2026-07-01T00:54:11+00:00", "session": "d9c33c72-4b46-446b-95f6-d77e173b422a", "input": 68297, "output": 273721, "cache_write": 653251, "cache_read": 33576297, "est_cost_usd": 84.1664, "models": ["claude-opus-4-8"]}
