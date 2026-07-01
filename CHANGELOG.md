@@ -6,6 +6,39 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.3.11] — 2026-07-01
+
+### Added
+
+- **Per-repo config is fully live** — `.claudster/config.toml` now drives three sections through a
+  single fail-open reader (`scripts/claudster_config.py`): `[guard]` (secret/destructive-action
+  allowlist), `[doc_coverage]` (`route_tree`, `page_guide`, `claude_md_budget`, `ignore_routes`), and
+  `[dream_memory]` (`prune_age_days`, `max_facts`, `surface_limit`). Every key falls back to a baked-in
+  default, so the file is entirely opt-in. `config.toml.example` relabelled from RESERVED to LIVE, and
+  `setup-project-ai` now deploys the config reader alongside the doc-coverage checker.
+
+## [1.3.10] — 2026-07-01
+
+### Added
+
+- **Dream Memory — a self-maintaining, per-repo short-term fact store** (adapted from fann; roadmap
+  Phase 5). Automatic facts that reinforce when they recur and decay when they don't, complementing
+  `relay.md`, `.claudster/kb`, and the central memory via a one-way promotion path.
+  - **Engine** (`scripts/dream_memory.py`) — pure, filesystem-free `merge` / `prune` (14-day decay,
+    cap 200) / `conflicts` / `rank_for_surfacing`, over a fail-open JSONL store
+    (`.claudster/memory.jsonl`, gitignored by default).
+  - **Capture** (`scripts/dream_capture.py`, wired into the `Stop` hook) — deterministic mining of the
+    session transcript: a Bash command that failed, or a build/test that went red→green. Privacy-first:
+    secret-touching commands are skipped entirely, and any inline tokens/keys/credentials are redacted
+    from the stored key *and* summary.
+  - **Surface** (SessionStart hook) — the top ~5 reinforced facts, capped and weighted toward the
+    "don't repeat this" failures. Honors `[dream_memory] surface_limit`.
+  - **Reason + promote** (knowledge-transfer agent) — appends the reasoned kinds (`rejected-approach`,
+    `repo-fact`) and, once a fact has recurred (hitCount ≥ 3), promotes it into a curated doc and drops
+    it from the store, so nothing double-surfaces.
+- **`.claudster/config.toml.example`** — a documented, opt-in template for per-repo claudster config,
+  scaffolded into new repos by `setup-project-ai`.
+
 ## [1.1.0] — 2026-06-10
 
 ### Fixed
