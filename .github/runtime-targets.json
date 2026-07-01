@@ -2,17 +2,7 @@
   "version": 1,
   "canonical_root": ".github",
   "output_root": "dist/runtime-resources",
-  "exclusions": {
-    "skills": [
-      "vmie"
-    ],
-    "private_roots": [
-      "vmie"
-    ],
-    "private_paths": [
-      "plans"
-    ]
-  },
+  "_comment_privacy": "No exclusions block: this repo (claudster-source) holds ONLY public, publishable source. Privacy is structural — the private vmie/ skills and .github/plans never existed here, so there is nothing to exclude. (Removed the old exclusions/private_roots/private_paths gating during the extraction from agent-sandbox.)",
   "targets": [
     {
       "name": "copilot",
@@ -411,10 +401,8 @@
     {
       "name": "codex",
       "_comment": "Codex CLI bundle — lite tier (skills + AGENTS.md + MCP example). No subagents/commands (Claude-native only). Skills mirror the claude bundle exactly. workspace_root='.' so bundle dirs map to project-root layout: .agents/skills/ (project skills), AGENTS.md, .codex/config.toml.example.",
-      "_comment_private": "include_private lifts vmie out of global exclusions — same personal-first stance as the claude bundle.",
       "workspace_root": ".",
       "extra_roots": {"harness": "claude-harness"},
-      "include_private": ["vmie"],
       "files": [
         {"root": "harness", "source": "claude-md/agents.md.tmpl", "destination": "AGENTS.md"},
         {"root": "harness", "source": "config.toml.example", "destination": ".codex/config.toml.example"}
@@ -467,9 +455,6 @@
             ],
             "productivity": [
               "github-issues", "jira-issues"
-            ],
-            "vmie": [
-              "golden-workflow", "windows-deployment"
             ]
           }
         }
@@ -484,7 +469,7 @@
       "extra_roots": { "harness": "claude-harness", "scriptsrc": "scripts" },
       "plugin": {
         "name": "claudster",
-        "version": "1.3.11",
+        "version": "1.3.12",
         "description": "claudster — agent-agnostic dev harness: lean subagents, TDD commands, tiered skills, and a CLAUDE.md generator.",
         "author": { "name": "junaid", "url": "https://github.com/saajunaid/junai" },
         "homepage": "https://github.com/saajunaid/junai",
@@ -561,7 +546,7 @@
       "workspace_root": "plugin-extras",
       "plugin": {
         "name": "claudster-extras",
-        "version": "1.3.1",
+        "version": "1.3.2",
         "description": "claudster-extras — the full claudster skill library beyond the core tier (cloud, data, the long tail of coding/frontend, media, productivity). Enable on demand to keep always-on context lean.",
         "author": { "name": "junaid", "url": "https://github.com/saajunaid/junai" },
         "homepage": "https://github.com/saajunaid/junai",
