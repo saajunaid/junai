@@ -59,7 +59,9 @@ the expected findings. Takes ~2 min per agent. No automation required; this is a
 | `ui-design-reviewer` | (URL-based) Local app with WCAG contrast failure; clean app |
 
 ### Signal 3 — new-model bake-off (triggered, not scheduled)
-When a new Claude model drops or you change tier assignments in `model-aliases.json`:
+When a new Claude model drops or you change tier assignments (there is no `model-aliases.json` — a
+tier is the `model:` frontmatter field in each `claude-harness/agents/<name>.md`; see `LOCAL-MODELS.md`
+for the tier→model mapping the gateway resolves it against):
 1. Pick 1 golden task per agent (the hardest one).
 2. Run it with the current model AND the new model.
 3. If the new model returns the same or better verdict with fewer tokens → update the tier.
@@ -74,7 +76,8 @@ When a new Claude model drops or you change tier assignments in `model-aliases.j
 2. For each flagged agent, run 1–2 golden tasks.
    Compare output to baseline transcript in eval/tasks/<agent>/.
 
-3. Check model-aliases.json — if any model was upgraded, run the bake-off for agents
+3. Check for `model:` frontmatter changes across `claude-harness/agents/*.md` (or a gateway
+   tier→model remap in `LOCAL-MODELS.md`) — if any model was upgraded, run the bake-off for agents
    on that tier.
 
 4. Update this file with findings:
