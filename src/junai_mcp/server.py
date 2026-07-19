@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shlex
 import signal as _signal
 import subprocess as _subprocess
 import sys
@@ -795,6 +796,113 @@ async def pipeline_reset(
 # Hard cap: prevents agents passing timeout=1200 from freezing the chat for 20 min.
 _RUN_COMMAND_MAX_TIMEOUT = 600
 
+# ── run_command gating (opt-in; OFF by default) ───────────────────────────────
+# run_command executes commands in the workspace and this server ships on PyPI as
+# a stdio MCP. It is a local footgun: anything that can reach the server can run
+# arbitrary commands. Three defences, applied in order:
+#   1. opt-in — disabled unless JUNAI_ENABLE_RUN_COMMAND is truthy;
+#   2. arg-array exec — parsed with shlex and run via create_subprocess_exec (no
+#      shell), so ';', '&&', '|', '$(...)', backticks can't chain or inject;
+#   3. allowlist — only known dev-tool executables run (basename match),
+#      overridable via JUNAI_RUN_COMMAND_ALLOWLIST (comma-separated; replaces set).
+_RUN_COMMAND_ENV_FLAG = "JUNAI_ENABLE_RUN_COMMAND"
+_RUN_COMMAND_ALLOWLIST_ENV = "JUNAI_RUN_COMMAND_ALLOWLIST"
+_DEFAULT_RUN_COMMAND_ALLOWLIST = frozenset(
+    {
+        "pytest", "python", "python3", "py", "pip", "uv",
+        "black", "ruff", "mypy", "flake8", "isort", "pylint",
+        "node", "npm", "npx", "pnpm", "yarn",
+        "tsc", "vite", "eslint", "prettier", "playwright",
+        "git", "make", "go", "cargo",
+    }
+)
+_TRUTHY = {"1", "true", "yes", "on"}
+_WIN_EXE_EXTS = (".exe", ".bat", ".cmd", ".com", ".ps1")
+
+
+def _is_truthy(value: str | None) -> bool:
+    return value is not None and value.strip().lower() in _TRUTHY
+
+
+def _run_command_enabled() -> bool:
+    return _is_truthy(os.getenv(_RUN_COMMAND_ENV_FLAG))
+
+
+def _run_command_allowlist() -> set[str]:
+    """Allowlist of permitted executable basenames.
+
+    JUNAI_RUN_COMMAND_ALLOWLIST (comma-separated) *replaces* the default set so an
+    operator can lock the tool down to exactly the executables their pipeline needs.
+    """
+    raw = os.getenv(_RUN_COMMAND_ALLOWLIST_ENV)
+    if not raw or not raw.strip():
+        return set(_DEFAULT_RUN_COMMAND_ALLOWLIST)
+    return {tok.strip().lower() for tok in raw.split(",") if tok.strip()}
+
+
+def _parse_command(command: str) -> list[str]:
+    """Tokenise a command string into argv WITHOUT shell semantics.
+
+    Backslash-escaping is disabled so Windows paths (``.venv\\Scripts\\pytest``)
+    survive intact; quotes are still honoured and stripped. Shell metacharacters
+    (``;`` ``&&`` ``|`` ``$()`` backticks) become ordinary literal arguments —
+    they cannot chain or inject a second command. Raises ValueError if empty.
+    """
+    lexer = shlex.shlex(command, posix=True)
+    lexer.whitespace_split = True
+    lexer.escape = ""        # backslash is a literal path separator, not an escape
+    lexer.commenters = ""    # '#' is a literal, not a comment
+    tokens = list(lexer)
+    if not tokens:
+        raise ValueError("empty command")
+    return tokens
+
+
+def _executable_name(token: str) -> str:
+    """Lowercased basename of an executable, with a Windows extension stripped."""
+    base = Path(token).name.lower()
+    for ext in _WIN_EXE_EXTS:
+        if base.endswith(ext):
+            return base[: -len(ext)]
+    return base
+
+
+def _command_allowed(argv: list[str]) -> bool:
+    return _executable_name(argv[0]) in _run_command_allowlist()
+
+
+def _resolve_executable(argv: list[str]) -> list[str]:
+    """Best-effort: anchor a relative executable *path* at WORKSPACE_ROOT and apply
+    Windows executable extensions. Bare command names (no path separator) are left
+    untouched for normal PATH resolution at exec time. This preserves the previous
+    shell-based behaviour where ``.venv/Scripts/pytest`` resolved against the
+    workspace, which arg-array exec would otherwise resolve against the parent cwd.
+    """
+    exe = argv[0]
+    if (os.sep not in exe) and ("/" not in exe):
+        return argv
+    candidate = WORKSPACE_ROOT / exe
+    exts = ("", *_WIN_EXE_EXTS) if sys.platform == "win32" else ("",)
+    for ext in exts:
+        probe = candidate.with_name(candidate.name + ext) if ext else candidate
+        if probe.is_file():
+            resolved = list(argv)
+            resolved[0] = str(probe)
+            return resolved
+    return argv  # not found on disk → let exec surface the error
+
+
+def _run_command_failure(command: str, reason: str) -> dict[str, Any]:
+    return {
+        "success": False,
+        "exit_code": -1,
+        "command": command,
+        "reason": reason,
+        "output": "",
+        "truncated": False,
+        "cwd": str(WORKSPACE_ROOT),
+    }
+
 
 @mcp.tool()
 async def run_command(
@@ -802,11 +910,13 @@ async def run_command(
     timeout: int = 60,
     max_output_chars: int = 20000,
 ) -> dict[str, Any]:
-    """Execute a shell command in the workspace root and return stdout, stderr, exit code.
+    """Execute an allowlisted command in the workspace root; return stdout/stderr/exit.
 
-    Use this for running tests (pytest, playwright), linters (black, ruff),
-    formatters, build steps, or any other shell command the pipeline needs to
-    execute hands-free. Intended for use by pipeline agents, not general chat.
+    **Disabled by default.** Set ``JUNAI_ENABLE_RUN_COMMAND=1`` in the server
+    environment to enable it. Even then, commands run via arg-array exec (no shell:
+    ``;`` ``&&`` ``|`` do NOT chain) and only allowlisted executables are permitted
+    (pytest, python, black, ruff, node, npm, git, …). Override the allowlist with
+    ``JUNAI_RUN_COMMAND_ALLOWLIST`` (comma-separated). Intended for pipeline agents.
 
     **Windows note:** Do NOT use pytest-xdist parallel flags (-n auto, -n N) in
     commands passed to this tool. Worker subprocesses inherit stdout/stderr pipe
@@ -814,14 +924,49 @@ async def run_command(
     Use plain `pytest tests/ -q` instead.
 
     Args:
-        command: Shell command to run (e.g. ".venv/Scripts/pytest tests/ -q").
-                 Executed in the workspace root directory with shell=True.
+        command: Command to run (e.g. ".venv/Scripts/pytest tests/ -q"). Tokenised
+                 without a shell; the first token must be an allowlisted executable.
         timeout: Seconds before the process is killed. Default 60s. Maximum 600s.
                  Increase for slow test suites or Playwright runs, but prefer
                  splitting large suites into smaller targeted runs.
         max_output_chars: Truncate combined output to this many characters to
                           avoid flooding the context window. Default 20000.
     """
+    return await _run_command_impl(command, timeout, max_output_chars)
+
+
+async def _run_command_impl(
+    command: str,
+    timeout: int = 60,
+    max_output_chars: int = 20000,
+) -> dict[str, Any]:
+    # Gate 1 — opt-in flag.
+    if not _run_command_enabled():
+        return _run_command_failure(
+            command,
+            "run_command is disabled. It executes commands in the workspace and is "
+            f"off by default. Set {_RUN_COMMAND_ENV_FLAG}=1 in this MCP server's "
+            "environment to enable it (allowlisted executables only, no shell).",
+        )
+
+    # Gate 2 — tokenise without shell semantics.
+    try:
+        argv = _parse_command(command)
+    except ValueError as exc:
+        return _run_command_failure(command, f"could not parse command: {exc}")
+
+    # Gate 3 — allowlist the executable.
+    if not _command_allowed(argv):
+        allowed = ", ".join(sorted(_run_command_allowlist()))
+        return _run_command_failure(
+            command,
+            f"executable '{_executable_name(argv[0])}' is not in the run_command "
+            f"allowlist. Allowed: {allowed}. Extend via {_RUN_COMMAND_ALLOWLIST_ENV} "
+            "(comma-separated).",
+        )
+
+    argv = _resolve_executable(argv)
+
     # Enforce hard cap — ignore caller-supplied values above the maximum.
     effective_timeout = min(float(timeout), float(_RUN_COMMAND_MAX_TIMEOUT))
 
@@ -833,8 +978,8 @@ async def run_command(
     _flags = _subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
 
     try:
-        process = await asyncio.create_subprocess_shell(
-            command,
+        process = await asyncio.create_subprocess_exec(
+            *argv,
             cwd=str(WORKSPACE_ROOT),
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
