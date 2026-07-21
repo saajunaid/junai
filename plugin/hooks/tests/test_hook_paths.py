@@ -46,6 +46,21 @@ def test_inject_reads_new_relay(tmp_path):
     assert "# Relay — NEW" in r.stdout
 
 
+def test_inject_anchors_to_session_cwd_not_process_cwd(tmp_path):
+    """The relay resolves from the session's repo (payload cwd), not the launch cwd."""
+    session_repo = tmp_path / "session_repo"
+    launch_repo = tmp_path / "launch_repo"
+    (session_repo / ".claudster").mkdir(parents=True)
+    (session_repo / ".claudster" / "relay.md").write_text("# Relay — SESSION REPO", encoding="utf-8")
+    launch_repo.mkdir()
+    (launch_repo / ".claudster").mkdir()
+    (launch_repo / ".claudster" / "relay.md").write_text("# Relay — LAUNCH REPO", encoding="utf-8")
+    payload = json.dumps({"cwd": str(session_repo)})
+    r = _run(INJECT, launch_repo, payload)
+    assert "# Relay — SESSION REPO" in r.stdout
+    assert "LAUNCH REPO" not in r.stdout
+
+
 def test_inject_falls_back_to_legacy_root_relay(tmp_path):
     (tmp_path / "relay.md").write_text("# Relay — LEGACY", encoding="utf-8")
     r = _run(INJECT, tmp_path, "{}")
@@ -271,6 +286,45 @@ def test_session_end_writes_new_usage_log(tmp_path):
     assert not old_log.exists()
 
 
+def _cost_for_model(tmp_path: Path, model: str) -> float:
+    """Run session_end over a 1M-input / 0-output transcript for `model`; return est cost.
+
+    With output=0 and no cache, est_cost_usd == the model's per-Mtok INPUT rate, so
+    the value directly exposes which pricing tier the model resolved to.
+    """
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    transcript = tmp_path / "transcript.jsonl"
+    transcript.write_text(
+        json.dumps({"message": {"model": model,
+                                "usage": {"input_tokens": 1_000_000, "output_tokens": 0}}}) + "\n",
+        encoding="utf-8",
+    )
+    payload = json.dumps({"transcript_path": str(transcript), "session_id": "t"})
+    _run(SESSION_END, tmp_path, payload)
+    log = tmp_path / ".claudster" / "usage-log.jsonl"
+    rec = json.loads([l for l in log.read_text(encoding="utf-8").splitlines() if l.strip()][-1])
+    return rec["est_cost_usd"]
+
+
+def test_oss_models_do_not_bill_as_sonnet(tmp_path):
+    sonnet_rate = _cost_for_model(tmp_path / "s", "claude-sonnet-4-6")
+    assert sonnet_rate == 3.0  # baseline: Anthropic sonnet input rate
+
+    # GLM / DeepSeek / Qwen must resolve to their own (cheaper) tiers, not sonnet.
+    glm = _cost_for_model(tmp_path / "glm", "glm-4.6")
+    deepseek = _cost_for_model(tmp_path / "ds", "deepseek-chat")
+    qwen = _cost_for_model(tmp_path / "qw", "qwen2.5-coder-32b")
+    for label, cost in (("glm", glm), ("deepseek", deepseek), ("qwen", qwen)):
+        assert cost < sonnet_rate, f"{label} billed at sonnet rate ({cost})"
+        assert cost > 0, f"{label} should have a non-zero API rate"
+
+
+def test_local_models_bill_zero(tmp_path):
+    # Self-hosted / ollama models have no per-token API cost.
+    assert _cost_for_model(tmp_path / "l1", "llama3.1:8b") == 0.0
+    assert _cost_for_model(tmp_path / "l2", "ollama/mistral") == 0.0
+
+
 # ── session_end: Dream Memory capture (Phase 5b) ────────────────────────────
 
 def _transcript_with_failed_bash(path: Path, command: str, output: str) -> None:
@@ -295,6 +349,29 @@ def test_session_end_captures_failure_to_memory_store(tmp_path):
     assert store.is_file()
     facts = [json.loads(l) for l in store.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert any(f["kind"] == "failure-mode" and "pytest" in f["summary"] for f in facts)
+
+
+def test_session_end_anchors_store_to_session_cwd_not_process_cwd(tmp_path):
+    """Facts land in the session's repo (payload cwd), not the hook process's launch cwd.
+
+    Launching a session in one repo while it operates in another must not leak the
+    second repo's facts into the first's Dream Memory store.
+    """
+    session_repo = tmp_path / "session_repo"   # where the work actually happened
+    launch_repo = tmp_path / "launch_repo"      # the hook process's cwd
+    session_repo.mkdir()
+    launch_repo.mkdir()
+    transcript = tmp_path / "transcript.jsonl"
+    _transcript_with_failed_bash(transcript, "pytest tests/test_api.py", "ImportError: no module 'app'")
+    payload = json.dumps(
+        {"transcript_path": str(transcript), "session_id": "t", "cwd": str(session_repo)}
+    )
+    # Run the hook with its process cwd in launch_repo, but the session cwd is session_repo.
+    _run(SESSION_END, launch_repo, payload)
+    assert (session_repo / ".claudster" / "memory.jsonl").is_file()
+    assert not (launch_repo / ".claudster" / "memory.jsonl").exists()
+    # The usage log follows the same anchor.
+    assert not (launch_repo / ".claudster" / "usage-log.jsonl").exists()
 
 
 def test_session_end_capture_redacts_secret_in_store(tmp_path):
@@ -362,7 +439,7 @@ def test_session_end_capture_anchors_store_to_repo_root(tmp_path):
 
 def test_session_end_anchors_log_to_repo_root(tmp_path):
     """A session launched from a subfolder must append to the repo-root log,
-    not scatter a .claudster/ into the subfolder (the rev-sight bug)."""
+    not scatter a .claudster/ into the subfolder (a real bug seen in the wild)."""
     _git_init(tmp_path)
     sub = tmp_path / "frontend"
     sub.mkdir()

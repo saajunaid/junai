@@ -29,7 +29,7 @@ def _resolve_harness_dir() -> Path:
     """Locate the harness resource root (templates, settings template, stack map).
 
     Two supported layouts:
-      • agent-sandbox dev:  scripts/setup_project_ai.py  → ../claude-harness/
+      • claudster-source dev:  scripts/setup_project_ai.py  → ../claude-harness/
       • bundled in plugin:  plugin/scripts/setup_project_ai.py → ../  (claude-md/ et al.
         sit directly at the plugin root, with no claude-harness/ subdir).
     Pick the first candidate that actually carries the templates.
@@ -628,14 +628,17 @@ allow = [
 def scaffold_claudster(target: Path, dry: bool) -> list[str]:
     """Create the harness-owned .claudster/ artifact tree + a default .gitignore + a config example.
 
-    Committed subdirs: plans, handoffs, agent-docs, prd. Transient state
+    Committed subdirs: plans, handoffs, agent-docs, prd, kb, prompts. Transient state
     (reviews/*.html, usage-log.jsonl, .last-usage-review, relay*, PROJECT-FACTS.md, memory.jsonl)
-    is gitignored. Also drops a documented `config.toml.example` (guard/doc_coverage/dream_memory).
-    Idempotent; never clobbers an existing .gitignore or config example.
+    is gitignored. .claudster/ is the default home for every working-artifact kind (Track A
+    Phase A3) — kb/ and prompts/ round out plans/prd/agent-docs/reviews so nothing has to
+    scatter to the repo root or .github/. Also drops a documented `config.toml.example`
+    (guard/doc_coverage/dream_memory). Idempotent; never clobbers an existing .gitignore or
+    config example.
     """
     notes: list[str] = []
     root = target / ".claudster"
-    for sub in ("plans", "handoffs", "agent-docs", "reviews", "prd"):
+    for sub in ("plans", "handoffs", "agent-docs", "reviews", "prd", "kb", "prompts"):
         d = root / sub
         if d.is_dir():
             continue
@@ -667,7 +670,7 @@ def relocate_legacy(target: Path, dry: bool) -> list[str]:
     Moves each source only when it exists AND the destination does not — never
     clobbers an already-migrated file (logs a skip instead). Idempotent: a second
     run finds no sources and is a no-op. Also migrates .github/plans/*.md into
-    .claudster/plans/ — EXCEPT on the claudster authoring source (agent-sandbox,
+    .claudster/plans/ — EXCEPT on the claudster authoring source (claudster-source,
     detected by a claude-harness/ dir), where .github/plans is pool-synced to the
     public junai mirror and must stay put (migration decision 5).
     """
@@ -692,7 +695,7 @@ def relocate_legacy(target: Path, dry: bool) -> list[str]:
         notes.append(f"migrate: {src_rel} → {dst_rel}")
 
     # .github/plans/*.md → .claudster/plans/ — per-file (the dir may already exist from the
-    # scaffold step), clobber-safe. SKIPPED for the claudster authoring source (agent-sandbox),
+    # scaffold step), clobber-safe. SKIPPED for the claudster authoring source (claudster-source),
     # where .github/plans is pool-synced to the public junai mirror (migration decision 5).
     # Detected by the presence of a claude-harness/ dir in the target.
     gh_plans = target / ".github" / "plans"

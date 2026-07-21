@@ -28,6 +28,7 @@
 | Skill | Path | When to Use |
 |-------|------|-------------|
 | Database Design | `database-design/` | Database schema design, optimization, and migration patterns for PostgreSQL, MySQL, and NoSQL databases. Use for designing schemas, writing migrations, or optimizing queries. |
+| Db Diagram | `db-diagram/` | Turn a SQL artifact — a stored procedure, view, query, .sql file, or table name — into a diagram that explains it to a human. Use when the user says "diagram this query/proc/view/schema", "explain this SQL visually", "draw the ER diagram", "show me the data flow of this stored proc", "/mermaid-db", or "/excalidraw-db". Produces Mermaid (default, git-diffable) or Excalidraw (for design reviews). Read-only — never touches the database. |
 
 ### Devops
 

@@ -15,7 +15,27 @@ Context / args: **$ARGUMENTS**
 Load and follow the `setup-project-ai` skill. Do not hand-roll the steps — the deterministic parts
 must go through the bundled generator so they don't vary. Resolve its path per the skill's Step 1:
 - Plugin install: `${CLAUDE_PLUGIN_ROOT}/scripts/setup_project_ai.py`
-- agent-sandbox checkout: `scripts/setup_project_ai.py`
+- harness (claudster-source) checkout: `scripts/setup_project_ai.py`
+
+## After the deterministic step — install the claude-oss / claude-glm launchers (optional)
+
+`claude-oss` / `claude-glm` (see `/claudster:use-model`) let a session run on an OSS provider (GLM,
+DeepSeek, OpenRouter). They live at `claude-harness/scripts/claude-oss.{sh,ps1}`. This step never
+silently edits the user's shell profile — print the one-liner and let them run it:
+
+```powershell
+# PowerShell — add to $PROFILE (or run once per session):
+function claude-oss { & "<path-to>\claude-harness\scripts\claude-oss.ps1" @args }
+function claude-glm  { & "<path-to>\claude-harness\scripts\claude-oss.ps1" @args }
+```
+```bash
+# bash/zsh — add to ~/.bashrc / ~/.zshrc:
+alias claude-oss="<path-to>/claude-harness/scripts/claude-oss.sh"
+alias claude-glm="<path-to>/claude-harness/scripts/claude-oss.sh"
+```
+Resolve `<path-to>` per the same plugin-vs-source rule as the generator itself (`${CLAUDE_PLUGIN_ROOT}`
+for a plugin install, the harness checkout path for claudster-source). Also set `CLAUDSTER_KEYS_FILE`
+(default `~/.claudster/keys.env`) with the provider keys — see `docs/guide/providers-and-keys.md`.
 
 ## After the deterministic step — deploy vmie skills (optional, personal)
 
