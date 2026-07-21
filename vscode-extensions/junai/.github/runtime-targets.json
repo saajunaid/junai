@@ -2,7 +2,7 @@
   "version": 1,
   "canonical_root": ".github",
   "output_root": "dist/runtime-resources",
-  "_comment_privacy": "No exclusions block: this repo (claudster-source) holds ONLY public, publishable source. Privacy is structural — the private vmie/ skills and .github/plans never existed here, so there is nothing to exclude. (Removed the old exclusions/private_roots/private_paths gating during the extraction from agent-sandbox.)",
+  "_comment_privacy": "No exclusions block: this repo (claudster-source) holds ONLY public, publishable source. Privacy is structural — the private vmie/ skills and .github/plans never existed here, so there is nothing to exclude. (Removed the old exclusions/private_roots/private_paths gating during the extraction from the predecessor repo.)",
   "targets": [
     {
       "name": "copilot",
@@ -29,41 +29,6 @@
       "files": [
         {"source": "project-config.md", "destination": "project-config.md"},
         {"source": "agent-docs/README.md", "destination": "agent-docs/README.md"}
-      ],
-      "additional_registry_transitions": [
-        {
-          "id": "T-S01",
-          "from_stage": "intake",
-          "to_stage": "plan",
-          "event": "complete",
-          "guards": [],
-          "gate": "intent_approved",
-          "hotfix_only": false,
-          "priority": 0,
-          "_comment": "ADLC-ptarmigan: direct intake → plan (prd and architect stages absent)"
-        },
-        {
-          "id": "T-S02",
-          "from_stage": "plan",
-          "to_stage": "preflight",
-          "event": "complete",
-          "guards": ["artefact_exists", "artefact_approved"],
-          "gate": "plan_approved",
-          "hotfix_only": false,
-          "priority": 0,
-          "_comment": "ADLC-ptarmigan: plan → preflight (optional validation gate)"
-        },
-        {
-          "id": "T-S03",
-          "from_stage": "preflight",
-          "to_stage": "implement",
-          "event": "complete",
-          "guards": [],
-          "gate": "plan_validated",
-          "hotfix_only": false,
-          "priority": 0,
-          "_comment": "ADLC-ptarmigan: preflight → implement (plan_validated gate, optional — skip by setting gate=passed manually)"
-        }
       ],
       "copies": [
         {
@@ -178,14 +143,6 @@
             "verify.prompt.md"
           ]
         },
-        {
-          "source": "tools",
-          "destination": "tools",
-          "included_names": [
-            "mcp-server",
-            "pipeline-runner"
-          ]
-        },
         {"source": "recipes", "destination": "recipes"},
         {
           "source": "agent-docs",
@@ -196,8 +153,7 @@
             "escalations"
           ]
         }
-      ],
-      "dependency_closure": true
+      ]
     },
     {
       "name": "liffey",
@@ -206,19 +162,6 @@
       "files": [
         {"source": "project-config.md", "destination": "project-config.md"},
         {"source": "agent-docs/README.md", "destination": "agent-docs/README.md"}
-      ],
-      "additional_registry_transitions": [
-        {
-          "id": "T-L01",
-          "from_stage": "plan",
-          "to_stage": "implement",
-          "event": "complete",
-          "guards": ["artefact_exists", "artefact_approved"],
-          "gate": "plan_approved",
-          "hotfix_only": false,
-          "priority": 0,
-          "_comment": "ADLC-liffey: direct plan → implement (preflight stage absent)"
-        }
       ],
       "copies": [
         {
@@ -375,28 +318,17 @@
             "verify.prompt.md"
           ]
         },
-        {
-          "source": "tools",
-          "destination": "tools",
-          "included_names": [
-            "mcp-server",
-            "pipeline-runner"
-          ]
-        },
         {"source": "recipes", "destination": "recipes"},
         {
           "source": "agent-docs",
           "destination": "agent-docs",
           "included_names": [
             "ARTIFACTS.md",
-            "PROJECT-ONBOARDING-RUNBOOK.md",
             "README.md",
-            "RECIPE-RUNBOOK.md",
             "escalations"
           ]
         }
-      ],
-      "dependency_closure": true
+      ]
     },
     {
       "name": "codex",
@@ -469,7 +401,7 @@
       "extra_roots": { "harness": "claude-harness", "scriptsrc": "scripts" },
       "plugin": {
         "name": "claudster",
-        "version": "1.3.25",
+        "version": "1.3.26",
         "description": "claudster — agent-agnostic dev harness: lean subagents, TDD commands, tiered skills, and a CLAUDE.md generator.",
         "author": { "name": "junaid", "url": "https://github.com/saajunaid/junai" },
         "homepage": "https://github.com/saajunaid/junai",
@@ -549,7 +481,7 @@
       "workspace_root": "plugin-extras",
       "plugin": {
         "name": "claudster-extras",
-        "version": "1.3.5",
+        "version": "1.3.6",
         "description": "claudster-extras — the full claudster skill library beyond the core tier (cloud, data, the long tail of coding/frontend, media, productivity). Enable on demand to keep always-on context lean.",
         "author": { "name": "junaid", "url": "https://github.com/saajunaid/junai" },
         "homepage": "https://github.com/saajunaid/junai",
