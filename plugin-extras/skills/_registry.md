@@ -58,7 +58,7 @@
 
 | Skill | Path | When to Use |
 |-------|------|-------------|
-| Architecture Document | `architecture-document/` |  |
+| Architecture Document | `architecture-document/` | Generate professional enterprise-grade HLD and LLD documents from the living Architecture.md. Outputs DOCX (editable) or PPTX (executive summary) using existing document skills. |
 | Doc Coauthoring | `doc-coauthoring/` | Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks. |
 | Documentation Analyzer | `documentation-analyzer/` | Analyze codebases, explain code functionality, and generate comprehensive documentation. Use when documenting a project, creating README files, or understanding complex code. |
 | Naming Analyzer | `naming-analyzer/` | Suggest better variable, function, and class names based on context and conventions. |
@@ -137,7 +137,7 @@
 | Skill | Path | When to Use |
 |-------|------|-------------|
 | Agent Md Refactor | `agent-md-refactor/` | Refactor bloated agent instruction files (AGENTS.md, .cursorrules, .github/ files, etc.) to follow progressive disclosure principles. Splits monolithic files into organized, linked documentation. |
-| Agent Orchestration | `agent-orchestration/` |  |
+| Agent Orchestration | `agent-orchestration/` | End-to-end blueprint for orchestrating the full agent pipeline — from spec intake through planning, implementation, testing, and debugging |
 | Ask Questions If Underspecified | `asking-questions/` | Clarify requirements before implementing. Do not use automatically, only when invoked explicitly. |
 | Data Contract Pipeline | `data-contract-pipeline/` | **WORKFLOW SKILL** - Build, audit, and validate data-to-UI contracts for apps. Use whenever the user mentions data mapping, UI lineage, DB-to-UI, DisplayDTOs, source-to-screen mapping, data contracts, schema drift, typed API responses, frontend type alignment, mockup grounding, requirements-to-UI mapping, or asks whether a UI is backed by real DB/file data. Works for DBs, JSON, Markdown, CSV, XLSX, YAML, APIs, and UI mockups. |
 | Developer Growth Analysis | `developer-growth-analysis/` | Analyzes your recent Claude Code chat history to identify coding patterns, development gaps, and areas for improvement, curates relevant learning resources from HackerNews, and automatically sends a personalized growth report to your Slack DMs. |
